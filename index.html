@@ -1,15 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<!-- iOS: usar este icono para “Añadir a pantalla de inicio” -->
-<link rel="apple-touch-icon" href="icon-180.png">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ACONFEX · MSP ULTRA-LITE</title>
+<meta name="theme-color" content="#0f172a" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ACONFEX · MSP DOCUMENTACION</title>
-<meta name="theme-color" content="#0f172a" />
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <style>
 :root{
   --bg:#0b1220; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb;
@@ -17,7 +15,7 @@
   --border:#1f2937; --chip:#0b3b54;
 }
 *{box-sizing:border-box}
-body{margin:0;background:linear-gradient(180deg,#0b1220,#0a0f1a);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+body{margin:0;background:linear-gradient(180deg,#0b1220,#0a0f1a);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 header{position:sticky;top:0;z-index:10;background:rgba(11,18,32,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
 .wrap{max-width:1000px;margin:0 auto;padding:14px}
 h1{margin:0;font-size:18px;letter-spacing:.3px}
@@ -430,86 +428,66 @@ document.querySelectorAll('button[data-del]').forEach(btn=>{
   btn.addEventListener('click', ()=> deleteSingleFile(btn.getAttribute('data-del')));
 });
 
-<script>
-/* Sustituye TODA tu función viewSingleFile por esta */
+/* Ver archivo (SINGLE_DOCS) – visor compatible con iPhone/Safari */
 async function viewSingleFile(kind){
   if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
-  let win = null;
-  try { win = window.open('', '_blank'); } catch {}
   const f = await getFile(currentId, kind);
-  if(!f){
-    if(win) win.close();
-    toast(`No hay archivo de ${kind}`);
-    return;
-  }
+  if(!f){ toast(`No hay archivo de ${kind}`); return; }
 
   const name = (f.name || `${kind}`).toString();
-  const lower = name.toLowerCase();
-  const mime  = (f.type || '').toLowerCase();
+  const lowerName = name.toLowerCase();
+  const mime  = (f.type || 'application/octet-stream').toLowerCase();
 
-  const isPDF   = mime.includes('pdf') || lower.endsWith('.pdf');
-  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(lower);
-  const isText  = mime.startsWith('text/')  || /\.(csv|txt|log)$/i.test(lower);
+  const isPDF   = mime.includes('pdf') || lowerName.endsWith('.pdf');
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(lowerName);
+  const isText  = mime.startsWith('text/')  || /\.(csv|txt|log)$/i.test(lowerName);
 
-  // Asegura el tipo correcto para PDFs en Safari
+  // Safari: PDFs deben ser 'application/pdf' para no ver pantalla en blanco
   const blob = new Blob([f.blob], { type: isPDF ? 'application/pdf' : (f.type || 'application/octet-stream') });
   const url  = URL.createObjectURL(blob);
 
-  // Construye un visor básico inmediatamente (mantiene el gesto del usuario)
-  if(win){
-    const shell = `<!DOCTYPE html><meta charset="utf-8">
-      <title>${kind} – ${name}</title>
-      <style>
-        html,body{height:100%;margin:0;background:#0b1220;color:#e5e7eb}
-        .bar{padding:10px 12px;font:14px system-ui;background:#0f172a;border-bottom:1px solid #1f2937}
-        .hint{color:#9fb3c8;font-size:12px;margin-left:8px}
-        iframe, img, pre{display:block;width:100%;height:calc(100% - 46px);border:0;background:#0b1220}
-        a.dl{position:fixed;bottom:10px;left:10px;color:#bfeaff;text-decoration:none;font:13px system-ui}
-      </style>
-      <div class="bar">${kind} · ${name}<span class="hint">Si no se ve, usa “Descargar”.</span></div>
-      ${isPDF ? `<iframe id="v" type="application/pdf"></iframe>` :
-        isImage ? `<img id="v" alt="vista">` :
-        isText  ? `<iframe id="v"></iframe>` :
-                  `<div class="bar">Tipo no visualizable; se habilitará descarga.</div>`}
-      <a class="dl" id="dl" download="${name}">Descargar</a>
-      <script>
-        window._setSrc = function(u){
-          var v = document.getElementById('v');
-          if(v){
-            if(v.tagName === 'IMG'){ v.src = u; }
-            else { v.src = u; }
-          }
-          var a = document.getElementById('dl'); a.href = u;
-        };
-      </`+`script>`;
-    win.document.open();
-    win.document.write(shell);
-    win.document.close();
+  // Intentamos ventana nueva (gesto de usuario)
+  let win = null;
+  try { win = window.open('', '_blank'); } catch {}
 
-    // Inyecta la URL del blob al visor
-    try { win._setSrc(url); }
-    catch(e){
-      // Fallback: si no podemos acceder al window, forzamos descarga
-      const a = document.createElement('a');
-      a.href = url; a.target = '_blank'; a.download = name;
-      document.body.appendChild(a); a.click(); a.remove();
+  const viewerHTML = `<!doctype html><html><head><meta charset="utf-8">
+  <title>${kind} – ${name}</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    html,body{height:100%;margin:0;background:#0b1220;color:#e5e7eb}
+    .bar{padding:10px 12px;font:14px system-ui;background:#0f172a;border-bottom:1px solid #1f2937}
+    .hint{color:#9fb3c8;font-size:12px;margin-left:8px}
+    .wrap{height:calc(100% - 46px)}
+    iframe, img{display:block;width:100%;height:100%;border:0;background:#0b1220}
+    a.dl{position:fixed;bottom:10px;left:10px;color:#bfeaff;text-decoration:none;font:13px system-ui}
+  </style></head><body>
+    <div class="bar">${kind} · ${name}<span class="hint">Si no se ve, usa “Descargar”.</span></div>
+    <div class="wrap">
+      ${isImage ? '<img id="v" alt="vista">' : '<iframe id="v"></iframe>'}
+    </div>
+    <a class="dl" id="dl" download="${name}">Descargar</a>
+  </body></html>`;
+
+  if(win){
+    win.document.open(); win.document.write(viewerHTML); win.document.close();
+    try{
+      const v = win.document.getElementById('v');
+      const a = win.document.getElementById('dl');
+      if(v){ if(v.tagName==='IMG') v.src = url; else v.src = url; }
+      if(a){ a.href = url; }
+    }catch(e){
+      const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=name; document.body.appendChild(a); a.click(); a.remove();
     }
-  } else {
-    // Pop-up bloqueado: descarga/abre en la misma pestaña
-    const a = document.createElement('a');
-    a.href = url; a.target = '_blank'; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
+  }else{
+    // Pop-up bloqueado: descarga directa
+    const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=name; document.body.appendChild(a); a.click(); a.remove();
   }
 
-  // Limpia el blob URL luego de un rato
   setTimeout(()=>URL.revokeObjectURL(url), 5*60*1000);
 }
-
-// (no toques esto: listeners existentes)
 document.querySelectorAll('button[data-view]').forEach(btn=>{
-  btn.addEventListener('click', (ev)=> viewSingleFile(btn.getAttribute('data-view'), ev));
+  btn.addEventListener('click', ()=> viewSingleFile(btn.getAttribute('data-view')));
 });
-</script>
 
 /*************** Backup / Restore ***************/
 $('#exportBtn').onclick = async ()=>{
@@ -529,8 +507,8 @@ $('#importInput').onchange = async (e)=>{
       memRecords=new Map(data.records.map(r=>[r.id,r]));
       memFiles=new Map(data.files.map(f=>{ const ab=base64ToArrayBuffer(f.dataBase64); const k=f.fileId; return [k,{...f,blob:ab}]; }));
     }else{
-      for(const r of data.records){ await new Promise((res,rej)=>{ const req=tx('records','readwrite').put(r); req.onsuccess=res; req.onerror=()=>rej(req.error); }); }
-      for(const f of data.files){ const put={...f}; put.blob=base64ToArrayBuffer(f.dataBase64); delete put.dataBase64; await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); req.onsuccess=res; req.onerror=()=>rej(r.error); }); }
+      for(const r of data.records){ await new Promise((res,rej)=>{ const req=tx('records','readwrite').put(r); req.onsuccess=res; req.onerror=()=>rej(r.error); }); }
+      for(const f of data.files){ const put={...f}; put.blob=base64ToArrayBuffer(f.dataBase64); delete put.dataBase64; await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); r.onsuccess=res; req.onerror=()=>rej(r.error); }); }
     }
     toast('Respaldo restaurado'); refreshList();
   }catch(err){ console.error(err); toast('Error al importar'); }
@@ -675,10 +653,10 @@ $('#shareBtn').onclick = async ()=>{
 };
 </script>
 
-<!-- Service Worker (súbelo también y cambia su versión para romper caché) -->
+<!-- Service Worker (sube versión para romper caché) -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=v12').catch(console.error);
+  navigator.serviceWorker.register('sw.js?v=v16').catch(console.error);
   navigator.serviceWorker.addEventListener('message', (e)=>{
     if(e.data && e.data.type==='SW_ACTIVATED'){
       const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>ACONFEX · DOCUMENTACION</title>
+<title>ACONFEX MSP</title>
 <meta name="theme-color" content="#0f172a" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -56,8 +56,7 @@ button:hover{background:#0c3055}
 .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;background:#081122;border:1px solid #263850;border-radius:6px;padding:1px 6px}
 .footer{color:#92a7be;font-size:12px;margin-top:4px}
 .toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#0b2a3f;color:#d8f0ff;border:1px solid #1d4763;padding:10px 14px;border-radius:10px;display:none}
-
-/* OTROS list */
+/* Lista de OTROS */
 .otros-list{margin-top:6px;display:flex;flex-direction:column;gap:6px}
 .adj-item{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border);background:#0a1324;border-radius:8px;padding:6px 8px}
 .adj-name{font-size:12px;color:#cdd9e5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%}
@@ -68,8 +67,8 @@ button:hover{background:#0c3055}
 <header>
   <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div>
-      <h1>ACONFEX · MSP ULTRA-LITE</h1>
-      <div class="subtitle">Una sola página, datos guardados en tu teléfono (sin servidores)</div>
+      <h1>ACONFEX DOCUMENTACION MSP</h1>
+      <div class="subtitle">Una sola página, datos guardados en el teléfono </div>
     </div>
     <div class="row" style="min-width:320px;align-items:center">
       <label for="weekSelect" class="muted" style="min-width:120px">Semana (vista)</label>
@@ -502,6 +501,8 @@ function viewGenericBlob(name, type, arrayBuffer, kindLabel){
   const mime  = (type||'application/octet-stream').toLowerCase();
   const isPDF   = mime.includes('pdf') || /\.pdf$/i.test(lower);
   const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(lower);
+  const isText  = mime.startsWith('text/')  || /\.(csv|txt|log)$/i.test(lower);
+
   const blob = new Blob([arrayBuffer], { type: isPDF ? 'application/pdf' : (type||'application/octet-stream') });
   const url  = URL.createObjectURL(blob);
 
@@ -600,7 +601,7 @@ async function ensureSavedFromForm(){
   await saveRecord(rec); currentId=rec.id; return rec.id;
 }
 
-/* PDF (DOCUMENTACIÓN con orden: FACT, BL, FITO, SEGURO, PACKING, LOGGER, OTROS) */
+/* PDF (orden: FACT, BL, FITO, SEGURO, PACKING, LOGGER, OTROS) */
 async function buildUnifiedPDF(id){
   const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
   const files = await getAllFilesFor(id);
@@ -721,10 +722,10 @@ $('#shareBtn').onclick = async ()=>{
 };
 </script>
 
-<!-- Service Worker (sube versión para romper caché tras actualizar archivos) -->
+<!-- Service Worker (sube versión para romper caché) -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=v17').catch(console.error);
+  navigator.serviceWorker.register('sw.js?v=v18').catch(console.error);
   navigator.serviceWorker.addEventListener('message', (e)=>{
     if(e.data && e.data.type==='SW_ACTIVATED'){
       const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }

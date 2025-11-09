@@ -1,5 +1,5 @@
 // sw.js — ACONFEX MSP · cache busting + actualización inmediata
-const SW_VERSION = 'v12';
+const SW_VERSION = 'v13';
 const CACHE = `aconfex-${SW_VERSION}`;
 const ROOT = new URL(self.registration.scope).pathname.replace(/\/$/, '/') || '/';
 const APP_SHELL = [ `${ROOT}`, `${ROOT}index.html` ];

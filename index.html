@@ -501,63 +501,87 @@ document.getElementById('pdfBtn').onclick = async ()=>{
 // === Extensión: añadir Factura y botón Compartir ===
 // Sobrescribimos el handler del botón PDF y agregamos "Compartir PDF"
 async function buildUnifiedPDF(id){
-  const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
-  const files = await getAllFilesFor(id);
-  const order = {BL:1, FACT:2, PACKING:3, FITO:4, SEGURO:5, LOGGER:6, OTROS:7};
-  files.sort((a,b)=> (order[a.docType]||9) - (order[b.docType]||9) || (a.name||'').localeCompare(b.name||''));
+  return (async()=>{
+    const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
+    const files = await getAllFilesFor(id);
+    const order = {BL:1, FACT:2, PACKING:3, FITO:4, SEGURO:5, LOGGER:6, OTROS:7};
+    files.sort((a,b)=> (order[a.docType]||9) - (order[b.docType]||9) || (a.name||'').localeCompare(b.name||''));
 
-  const { PDFDocument, StandardFonts, rgb } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const A4_W = 595.28, A4_H = 841.89;
+    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    const pdfDoc = await PDFDocument.create();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const A4_W = 595.28, A4_H = 841.89;
 
-  // Portada
-  const page = pdfDoc.addPage([A4_W, A4_H]);
-  const draw = (txt, x, y, s=12)=> page.drawText(txt, {x, y, size:s, font, color: rgb(0.9,0.95,1)});
-  page.drawRectangle({x:0,y:0,width:A4_W,height:A4_H,color:rgb(0.06,0.08,0.13)});
-  draw('ACONFEX · Dossier de Contenedor', 52, A4_H-72, 20);
-  draw(`Semana: ${rec.week||''}`, 52, A4_H-120);
-  draw(`CNTR: ${rec.cntr||''}`, 52, A4_H-140);
-  draw(`Cliente: ${rec.cliente||''}`, 52, A4_H-160);
-  draw(`Destino: ${rec.destino||''}`, 52, A4_H-180);
-  draw(`ETD: ${rec.etd||''}`, 52, A4_H-200);
-  draw(`Notas: ${rec.notas||''}`.slice(0,120), 52, A4_H-220);
-  draw('Incluye: BL, Factura, Packing, Fito, Seguro, Logger y Otros.', 52, A4_H-260, 11);
+    // Portada
+    const page = pdfDoc.addPage([A4_W, A4_H]);
+    const draw = (txt, x, y, s=12, color=rgb(0.9,0.95,1))=> page.drawText(txt, {x, y, size:s, font, color});
+    page.drawRectangle({x:0,y:0,width:A4_W,height:A4_H,color:rgb(0.06,0.08,0.13)});
 
-  // Adjuntos
-  for(const f of files){
-    const bytes = new Uint8Array(f.blob);
-    const type = (f.type||'').toLowerCase();
+    // Semáforo de embarque (BL + Fito + Seguro)
+    const hasBL = files.some(f=>f.docType==='BL');
+    const hasFITO = files.some(f=>f.docType==='FITO');
+    const hasSEGURO = files.some(f=>f.docType==='SEGURO');
+    const okCount = [hasBL,hasFITO,hasSEGURO].filter(Boolean).length;
+    let status='ROJO', sealColor=rgb(0.94,0.27,0.27); // rojo
+    if(okCount===3){ status='VERDE'; sealColor=rgb(0.13,0.77,0.37); }
+    else if(okCount===2){ status='AMARILLO'; sealColor=rgb(0.96,0.62,0.04); }
+
+    // Cabecera
+    draw('ACONFEX · Dossier de Contenedor', 52, A4_H-72, 20);
+    draw(`Semana: ${rec.week||''}`, 52, A4_H-120);
+    draw(`CNTR: ${rec.cntr||''}`, 52, A4_H-140);
+    draw(`Cliente: ${rec.cliente||''}`, 52, A4_H-160);
+    draw(`Destino: ${rec.destino||''}`, 52, A4_H-180);
+    draw(`ETD: ${rec.etd||''}`, 52, A4_H-200);
+    draw(`Notas: ${rec.notas||''}`.slice(0,120), 52, A4_H-220);
+    draw('Incluye: BL, Factura, Packing, Fito, Seguro, Logger y Otros.', 52, A4_H-260, 11);
+
+    // Sello OK para embarque
+    page.drawRectangle({x:A4_W-230,y:A4_H-95,width:190,height:34,color:sealColor});
+    draw(`OK para embarque: ${status}`, A4_W-222, A4_H-83, 12, rgb(0,0,0));
+
+    // Timestamp
+    const ts = new Date();
     try{
-      if(type.startsWith('application/pdf')){
-        const src = await PDFDocument.load(bytes);
-        const pages = await pdfDoc.copyPages(src, src.getPageIndices());
-        pages.forEach(p=>pdfDoc.addPage(p));
-      } else if(type.startsWith('image/')){
-        let img; const pg = pdfDoc.addPage([A4_W, A4_H]);
-        if(type.includes('png')){ img = await pdfDoc.embedPng(bytes);} else { img = await pdfDoc.embedJpg(bytes);} 
-        const w = img.width, h = img.height; const scale = Math.min((A4_W-60)/w, (A4_H-120)/h);
-        const dw = w*scale, dh = h*scale; pg.drawImage(img, {x:(A4_W-dw)/2, y:(A4_H-dh)/2, width:dw, height:dh});
-        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,80), {x:40, y:40, size:10, font});
-      } else if(type.includes('csv') || type.startsWith('text/')){
-        const txt = new TextDecoder().decode(bytes).split('
+      const tsStr = ts.toLocaleString('es-CL', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+      draw(`Generado: ${tsStr}`, 52, A4_H-300, 10);
+    }catch{ draw(`Generado: ${ts.toISOString()}`, 52, A4_H-300, 10); }
+
+    // Adjuntos
+    for(const f of files){
+      const bytes = new Uint8Array(f.blob);
+      const type = (f.type||'').toLowerCase();
+      try{
+        if(type.startsWith('application/pdf')){
+          const src = await PDFDocument.load(bytes);
+          const pages = await pdfDoc.copyPages(src, src.getPageIndices());
+          pages.forEach(p=>pdfDoc.addPage(p));
+        } else if(type.startsWith('image/')){
+          let img; const pg = pdfDoc.addPage([A4_W, A4_H]);
+          if(type.includes('png')){ img = await pdfDoc.embedPng(bytes);} else { img = await pdfDoc.embedJpg(bytes);} 
+          const w = img.width, h = img.height; const scale = Math.min((A4_W-60)/w, (A4_H-120)/h);
+          const dw = w*scale, dh = h*scale; pg.drawImage(img, {x:(A4_W-dw)/2, y:(A4_H-dh)/2, width:dw, height:dh});
+          pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,80), {x:40, y:40, size:10, font});
+        } else if(type.includes('csv') || type.startsWith('text/')){
+          const txt = new TextDecoder().decode(bytes).split('
 ').slice(0,60).join('
 ');
-        const pg = pdfDoc.addPage([A4_W, A4_H]);
-        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
-        let y=A4_H-90; const size=10; for(const line of txt.split('
+          const pg = pdfDoc.addPage([A4_W, A4_H]);
+          pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
+          let y=A4_H-90; const size=10; for(const line of txt.split('
 ')){ pg.drawText(line.slice(0,110), {x:40, y, size, font}); y-=size+4; if(y<60) break; }
-      } else {
-        const pg = pdfDoc.addPage([A4_W, A4_H]);
-        pg.drawText(`Adjunto no visualizable: ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
-      }
-    } catch(err){ console.warn('Error adjunto', f.name, err); }
-  }
+        } else {
+          const pg = pdfDoc.addPage([A4_W, A4_H]);
+          pg.drawText(`Adjunto no visualizable: ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
+        }
+      } catch(err){ console.warn('Error adjunto', f.name, err); }
+    }
 
-  const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes], {type:'application/pdf'});
-  const filename = `${rec.cntr||'CNTR'}_dossier.pdf`;
-  return {blob, filename};
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], {type:'application/pdf'});
+    const filename = `${rec.cntr||'CNTR'}_dossier.pdf`;
+    return {blob, filename};
+  })();
 }
 
 // Descargar PDF

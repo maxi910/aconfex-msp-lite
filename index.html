@@ -45,6 +45,10 @@ button:hover{background:#0c3055}
 .muted{color:var(--muted)}
 .actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
 .btn-ghost{background:#091125;border-color:#1a2c48}
+.btn-mini{width:auto;display:inline-flex;gap:6px;align-items:center;padding:6px 10px;font-size:12px;border-radius:8px}
+.btn-danger{background:#3a0d0d;border-color:#4a1515}
+.btn-danger:hover{background:#531616}
+.btn-mini[disabled]{opacity:.55;cursor:not-allowed}
 .help{font-size:12px;color:#a8c1d9}
 .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;background:#081122;border:1px solid #263850;border-radius:6px;padding:1px 6px}
 .footer{color:#92a7be;font-size:12px;margin-top:4px}
@@ -104,45 +108,73 @@ button:hover{background:#0c3055}
     <label style="margin-top:12px">Documentos (PDF/Imagen)</label>
     <div class="docs">
       <div class="docbox" data-doctype="BL">
-        <div class="dochead"><span class="docname">BL</span><span class="chip miss" id="state_BL">faltante</span></div>
+        <div class="dochead">
+          <span class="docname">BL</span>
+          <span class="chip miss" id="state_BL">faltante</span>
+        </div>
         <input type="file" accept="application/pdf,image/*" data-file="BL" />
         <div class="help" id="info_BL"></div>
+        <div class="actions"><button class="btn-mini btn-danger" data-del="BL" disabled>Eliminar BL</button></div>
       </div>
 
       <div class="docbox" data-doctype="FACT">
-        <div class="dochead"><span class="docname">Factura (Invoice)</span><span class="chip miss" id="state_FACT">faltante</span></div>
+        <div class="dochead">
+          <span class="docname">Factura (Invoice)</span>
+          <span class="chip miss" id="state_FACT">faltante</span>
+        </div>
         <input type="file" accept="application/pdf,image/*" data-file="FACT" />
         <div class="help" id="info_FACT"></div>
+        <div class="actions"><button class="btn-mini btn-danger" data-del="FACT" disabled>Eliminar Factura</button></div>
       </div>
 
       <div class="docbox" data-doctype="PACKING">
-        <div class="dochead"><span class="docname">Packing List</span><span class="chip miss" id="state_PACKING">faltante</span></div>
+        <div class="dochead">
+          <span class="docname">Packing List</span>
+          <span class="chip miss" id="state_PACKING">faltante</span>
+        </div>
         <input type="file" accept="application/pdf,image/*" data-file="PACKING" />
         <div class="help" id="info_PACKING"></div>
+        <div class="actions"><button class="btn-mini btn-danger" data-del="PACKING" disabled>Eliminar Packing</button></div>
       </div>
 
       <div class="docbox" data-doctype="FITO">
-        <div class="dochead"><span class="docname">Fitosanitario</span><span class="chip miss" id="state_FITO">faltante</span></div>
+        <div class="dochead">
+          <span class="docname">Fitosanitario</span>
+          <span class="chip miss" id="state_FITO">faltante</span>
+        </div>
         <input type="file" accept="application/pdf,image/*" data-file="FITO" />
         <div class="help" id="info_FITO"></div>
+        <div class="actions"><button class="btn-mini btn-danger" data-del="FITO" disabled>Eliminar Fito</button></div>
       </div>
 
       <div class="docbox" data-doctype="SEGURO">
-        <div class="dochead"><span class="docname">Seguro</span><span class="chip miss" id="state_SEGURO">faltante</span></div>
+        <div class="dochead">
+          <span class="docname">Seguro</span>
+          <span class="chip miss" id="state_SEGURO">faltante</span>
+        </div>
         <input type="file" accept="application/pdf,image/*" data-file="SEGURO" />
         <div class="help" id="info_SEGURO"></div>
+        <div class="actions"><button class="btn-mini btn-danger" data-del="SEGURO" disabled>Eliminar Seguro</button></div>
       </div>
 
       <div class="docbox" data-doctype="LOGGER">
-        <div class="dochead"><span class="docname">Datalogger / Temperatura</span><span class="chip miss" id="state_LOGGER">faltante</span></div>
+        <div class="dochead">
+          <span class="docname">Datalogger / Temperatura</span>
+          <span class="chip miss" id="state_LOGGER">faltante</span>
+        </div>
         <input type="file" accept="application/pdf,image/*,.csv" data-file="LOGGER" />
         <div class="help" id="info_LOGGER"></div>
+        <div class="actions"><button class="btn-mini btn-danger" data-del="LOGGER" disabled>Eliminar Logger</button></div>
       </div>
 
       <div class="docbox" data-doctype="OTROS">
-        <div class="dochead"><span class="docname">Otros (PDF/PNG/JPG)</span><span class="chip" id="state_OTROS">0 adjuntos</span></div>
+        <div class="dochead">
+          <span class="docname">Otros (PDF/PNG/JPG)</span>
+          <span class="chip" id="state_OTROS">0 adjuntos</span>
+        </div>
         <input type="file" accept="application/pdf,image/*" multiple data-file="OTROS" />
         <div class="help" id="info_OTROS"></div>
+        <!-- OTROS se mantienen múltiples; no se agrega botón de borrar individual en esta versión -->
       </div>
     </div>
 
@@ -222,6 +254,8 @@ function enableMemory(){
 }
 
 /*************** UI / Estado ***************/
+const SINGLE_DOCS = ['BL','FACT','PACKING','FITO','SEGURO','LOGGER'];
+
 function lightFor(rec){
   const hasBL=!!rec.files.BL, hasFITO=!!rec.files.FITO, hasSEGURO=!!rec.files.SEGURO;
   const n=[hasBL,hasFITO,hasSEGURO].filter(Boolean).length;
@@ -231,17 +265,22 @@ let currentWeek='01', currentId=null;
 
 async function inflateRecord(base){
   const id=base.id; const files={};
-  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','LOGGER']){
+  for(const k of SINGLE_DOCS){
     const f = await getFile(id,k); files[k]=!!f;
   }
   const otros = await getOtros(id); files.OTROS = otros.length;
   return {...base, files};
+}
+function setDelEnabled(kind, enabled){
+  const btn=document.querySelector(`button[data-del="${kind}"]`);
+  if(btn){ btn.disabled = !enabled; }
 }
 function updateDocState(k, ok, info){
   const chip = document.getElementById('state_'+k); if(!chip) return;
   chip.className = 'chip ' + (ok? 'ok':'miss');
   chip.innerHTML = ok ? 'cargado' : 'faltante';
   const inf = document.getElementById('info_'+k); if(inf) inf.textContent = info||'';
+  if(SINGLE_DOCS.includes(k)) setDelEnabled(k, !!ok);
 }
 function updateOtrosState(n, names){
   const chip = document.getElementById('state_OTROS');
@@ -251,11 +290,11 @@ function updateOtrosState(n, names){
 }
 function clearForm(){
   currentId=null; $('#f_cntr').value=''; $('#f_cliente').value=''; $('#f_destino').value=''; $('#f_etd').value=''; $('#f_notas').value='';
-  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','LOGGER']) updateDocState(k,false,''); updateOtrosState(0,[]);
+  for(const k of SINGLE_DOCS) updateDocState(k,false,''); updateOtrosState(0,[]);
 }
 function loadIntoForm(rec){
   currentId=rec.id; $('#f_week').value=rec.week; $('#f_cntr').value=rec.cntr; $('#f_cliente').value=rec.cliente||''; $('#f_destino').value=rec.destino||''; $('#f_etd').value=rec.etd||''; $('#f_notas').value=rec.notas||'';
-  inflateRecord(rec).then(r=>{ for(const k of ['BL','FACT','PACKING','FITO','SEGURO','LOGGER']) updateDocState(k,r.files[k],r.files[k]?'cargado':''); updateOtrosState(r.files.OTROS,[]); });
+  inflateRecord(rec).then(r=>{ for(const k of SINGLE_DOCS) updateDocState(k,r.files[k],r.files[k]?'cargado':''); updateOtrosState(r.files.OTROS,[]); });
 }
 async function refreshList(){
   const list=$('#list'); list.innerHTML='';
@@ -313,6 +352,7 @@ $('#deleteBtn').onclick = async ()=>{
   if(confirm('¿Eliminar este contenedor y sus archivos?')){ await deleteRecord(currentId); clearForm(); refreshList(); toast('Eliminado'); }
 };
 
+/* Subida de archivos con tope=1 (salvo OTROS) y confirmación de reemplazo */
 Array.from(document.querySelectorAll('input[type=file][data-file]')).forEach(inp=>{
   inp.addEventListener('change', async (e)=>{
     const files=Array.from(e.target.files||[]); if(!files.length) return;
@@ -321,12 +361,47 @@ Array.from(document.querySelectorAll('input[type=file][data-file]')).forEach(inp
     if(!cntr){ toast('Primero escribe el CNTR'); e.target.value=''; return; }
     const id=currentId||`${week}:${cntr}`;
     if(!currentId){ await saveRecord({id,week,cntr,ts:Date.now()}); currentId=id; }
-    const kind=e.target.getAttribute('data-file'); const names=[];
-    for(const f of files){ await saveFile(id,kind,f); names.push(f.name); }
-    if(kind==='OTROS'){ const otros=await getOtros(id); updateOtrosState(otros.length,otros.map(o=>o.name)); }
-    else{ updateDocState(kind,true,'cargado: '+names.join(', ')); }
-    toast('Archivo(s) guardados en el dispositivo'); refreshList(); e.target.value='';
+    const kind=e.target.getAttribute('data-file');
+
+    if(SINGLE_DOCS.includes(kind)){
+      const existing = await getFile(id, kind);
+      if(existing){
+        const ok = confirm(`Ya existe ${kind}. ¿Reemplazar el archivo cargado?`);
+        if(!ok){ e.target.value=''; return; }
+      }
+      const f = files[0]; // tope 1
+      await saveFile(id,kind,f);
+      updateDocState(kind,true,'cargado: '+f.name);
+      toast(`${kind} actualizado`);
+    }else{
+      // OTROS acepta múltiples
+      const names=[];
+      for(const f of files){ await saveFile(id,kind,f); names.push(f.name); }
+      const otros=await getOtros(id);
+      updateOtrosState(otros.length, otros.map(o=>o.name));
+      toast(`Adjuntos agregados (${names.length})`);
+    }
+    refreshList(); e.target.value='';
   });
+});
+
+/* Eliminar archivo individual (solo SINGLE_DOCS) */
+async function deleteSingleFile(kind){
+  if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
+  const ok = confirm(`¿Eliminar el archivo de ${kind}?`);
+  if(!ok) return;
+  const key = `${currentId}:${kind}`;
+  if(useMemory){
+    memFiles.delete(key);
+  }else{
+    await new Promise((res,rej)=>{ const r=tx('files','readwrite').delete(key); r.onsuccess=res; r.onerror=()=>rej(r.error); });
+  }
+  updateDocState(kind,false,'');
+  toast(`${kind} eliminado`);
+  refreshList();
+}
+document.querySelectorAll('button[data-del]').forEach(btn=>{
+  btn.addEventListener('click', ()=> deleteSingleFile(btn.getAttribute('data-del')));
 });
 
 /*************** Backup / Restore ***************/
@@ -334,7 +409,7 @@ $('#exportBtn').onclick = async ()=>{
   const records = useMemory ? [...memRecords.values()] : await new Promise((res,rej)=>{ const out=[]; const req=tx('records').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){out.push(c.value); c.continue();} else res(out)}; req.onerror=()=>rej(req.error); });
   const files = useMemory ? [...memFiles.values()].map(v=>({...v, dataBase64: arrayBufferToBase64(v.blob)})) :
     await new Promise((res,rej)=>{ const out=[]; const req=tx('files').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){ const v=c.value; const b64=arrayBufferToBase64(v.blob); out.push({...v,dataBase64:b64}); c.continue(); } else res(out) }; req.onerror=()=>rej(req.error); });
-  const payload={version:'1.1', exportedAt:new Date().toISOString(), records, files};
+  const payload={version:'1.2', exportedAt:new Date().toISOString(), records, files};
   const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='aconfex_backup.json'; a.click(); URL.revokeObjectURL(a.href);
   toast('Respaldo exportado');
@@ -372,6 +447,7 @@ async function ensureSavedFromForm(){
   await saveRecord(rec); currentId=rec.id; return rec.id;
 }
 
+/* PDF rediseñado (ya actualizado a DOCUMENTACIÓN y semáforo reubicado) */
 async function buildUnifiedPDF(id){
   const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
   const files = await getAllFilesFor(id);
@@ -383,7 +459,6 @@ async function buildUnifiedPDF(id){
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const A4_W = 595.28, A4_H = 841.89;
 
-  // helpers
   const drawText = (page, txt, x, y, size=12, color=rgb(0.94,0.98,1)) => page.drawText(String(txt||''), {x, y, size, font, color});
   const drawRect = (page, x,y,w,h,color)=> page.drawRectangle({x,y,width:w,height:h,color});
   const drawLine = (page, x1,y1,x2,y2,color=rgb(0.16,0.24,0.35),width=1) => page.drawLine({start:{x:x1,y:y1}, end:{x:x2,y:y2}, thickness:width, color});
@@ -391,7 +466,6 @@ async function buildUnifiedPDF(id){
   const label = (page, txt, x,y) => drawText(page, String(txt).toUpperCase(), x, y, 9, rgb(0.62,0.72,0.86));
   const value = (page, txt, x,y, size=13) => drawText(page, String(txt||''), x, y, size, rgb(0.95,0.98,1));
 
-  // portada
   const page = pdfDoc.addPage([A4_W, A4_H]);
   drawRect(page, 0,0, A4_W, A4_H, rgb(0.06,0.08,0.13));
 
@@ -400,57 +474,46 @@ async function buildUnifiedPDF(id){
   let status='ROJO', sealColor=rgb(0.94,0.27,0.27); if(okCount===3){status='VERDE';sealColor=rgb(0.13,0.77,0.37);} else if(okCount===2){status='AMARILLO';sealColor=rgb(0.96,0.62,0.04);}
 
   const M=48;
-  // Título actualizado (sin “dossier”)
   drawText(page, 'ACONFEX · DOCUMENTACIÓN', M, A4_H-72, 28);
 
-  // Cápsula: ancho dinámico y más abajo (evita superposición)
   const pillText = `OK para embarque: ${status}`;
   const pillH = 36;
   const pillW = Math.max(240, font.widthOfTextAtSize(pillText, 13) + 48);
   const pillX = A4_W - M - pillW;
-  const pillY = A4_H - 120;  // más abajo que el título
+  const pillY = A4_H - 120;
   drawPill(page, pillX, pillY, pillW, pillH, sealColor);
   drawText(page, pillText, pillX + 16, pillY + 11.5, 13, rgb(0,0,0));
 
-  // panel celdas
   const boxColor = rgb(0.07,0.11,0.18), border = rgb(0.16,0.24,0.35);
   const panelTop = A4_H-180, rowGap=12, colGap=18, cellH=44;
   const panelW = (A4_W - 2*M), cW = (panelW - colGap)/2; const leftX=M, rightX=M+cW+colGap;
 
-  // fila 1
   drawRect(page,leftX,panelTop,cW,cellH,boxColor); drawLine(page,leftX,panelTop,leftX+cW,panelTop,border,1);
   label(page,'Semana',leftX+10,panelTop+cellH-16); value(page,rec.week||'',leftX+10,panelTop+12);
   drawRect(page,rightX,panelTop,cW,cellH,boxColor); drawLine(page,rightX,panelTop,rightX+cW,panelTop,border,1);
   label(page,'CNTR',rightX+10,panelTop+cellH-16); value(page,rec.cntr||'',rightX+10,panelTop+12);
 
-  // fila 2
   const row2Y = panelTop-(cellH+rowGap);
   drawRect(page,leftX,row2Y,cW,cellH,boxColor); label(page,'Cliente',leftX+10,row2Y+cellH-16); value(page,rec.cliente||'',leftX+10,row2Y+12);
   drawRect(page,rightX,row2Y,cW,cellH,boxColor); label(page,'Destino',rightX+10,row2Y+cellH-16); value(page,rec.destino||'', rightX+10,row2Y+12);
 
-  // fila 3
   const row3Y = row2Y-(cellH+rowGap);
   drawRect(page,leftX,row3Y,cW,cellH,boxColor); label(page,'ETD',leftX+10,row3Y+cellH-16); value(page,rec.etd||'',leftX+10,row3Y+12);
 
-  // notas ancho
   const notasX=leftX, notasY=row3Y-(cellH+rowGap), notasW=panelW, notasH=64;
   drawRect(page,notasX,notasY,notasW,notasH,boxColor); label(page,'Notas',notasX+10,notasY+notasH-16);
   const n=(rec.notas||''); const line1=String(n).slice(0,66), line2 = String(n).length>66 ? String(n).slice(66,132) : '';
   value(page,line1,notasX+10,notasY+34); if(line2) value(page,line2,notasX+10,notasY+16);
 
-  // división
   drawLine(page,M,notasY-16,A4_W-M,notasY-16,border,1);
 
-  // incluye + pendientes
   const includeY=notasY-34; drawText(page,'Incluye: BL, Factura, Packing, Fito, Seguro, Logger y Otros.', M, includeY, 11);
   const missing=['BL','FACT','PACKING','FITO','SEGURO','LOGGER'].filter(t=>!files.some(f=>f.docType===t));
   if(missing.length){ drawText(page,'Pendientes: '+missing.join(', '), M, includeY-18, 11, rgb(0.96,0.62,0.04)); }
 
-  // timestamp
   const ts=new Date(); let timeStr; try{ timeStr=ts.toLocaleString('es-CL',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}); }catch{ timeStr=ts.toISOString(); }
   drawText(page, 'Generado: '+timeStr, M, includeY-46, 10);
 
-  // adjuntos
   for(const f of files){
     const bytes=new Uint8Array(f.blob); const type=(f.type||'').toLowerCase();
     try{
@@ -496,10 +559,10 @@ $('#shareBtn').onclick = async ()=>{
 };
 </script>
 
-<!-- Service Worker (opcional) -->
+<!-- Service Worker (actualiza versión) -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=v7').catch(console.error);
+  navigator.serviceWorker.register('sw.js?v=v8').catch(console.error);
   navigator.serviceWorker.addEventListener('message', (e)=>{
     if(e.data && e.data.type==='SW_ACTIVATED'){
       const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }

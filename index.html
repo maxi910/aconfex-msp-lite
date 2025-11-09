@@ -430,36 +430,86 @@ document.querySelectorAll('button[data-del]').forEach(btn=>{
   btn.addEventListener('click', ()=> deleteSingleFile(btn.getAttribute('data-del')));
 });
 
-/* Ver archivo (SINGLE_DOCS): abre en nueva pestaña de forma compatible con bloqueadores */
-async function viewSingleFile(kind, ev){
+<script>
+/* Sustituye TODA tu función viewSingleFile por esta */
+async function viewSingleFile(kind){
   if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
-  let preWin = null;
-  try { preWin = window.open('', '_blank'); } catch {}
+  let win = null;
+  try { win = window.open('', '_blank'); } catch {}
   const f = await getFile(currentId, kind);
   if(!f){
-    if(preWin) preWin.close();
+    if(win) win.close();
     toast(`No hay archivo de ${kind}`);
     return;
   }
-  try{
-    const blob = new Blob([f.blob], {type: f.type || 'application/octet-stream'});
-    const url  = URL.createObjectURL(blob);
-    const type = (f.type||'').toLowerCase();
-    if(preWin){ preWin.location.href = url; try { preWin.document.write('<title>Abriendo…</title>'); } catch {} }
-    else{
-      const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=f.name || (`${kind}.pdf`);
+
+  const name = (f.name || `${kind}`).toString();
+  const lower = name.toLowerCase();
+  const mime  = (f.type || '').toLowerCase();
+
+  const isPDF   = mime.includes('pdf') || lower.endsWith('.pdf');
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(lower);
+  const isText  = mime.startsWith('text/')  || /\.(csv|txt|log)$/i.test(lower);
+
+  // Asegura el tipo correcto para PDFs en Safari
+  const blob = new Blob([f.blob], { type: isPDF ? 'application/pdf' : (f.type || 'application/octet-stream') });
+  const url  = URL.createObjectURL(blob);
+
+  // Construye un visor básico inmediatamente (mantiene el gesto del usuario)
+  if(win){
+    const shell = `<!DOCTYPE html><meta charset="utf-8">
+      <title>${kind} – ${name}</title>
+      <style>
+        html,body{height:100%;margin:0;background:#0b1220;color:#e5e7eb}
+        .bar{padding:10px 12px;font:14px system-ui;background:#0f172a;border-bottom:1px solid #1f2937}
+        .hint{color:#9fb3c8;font-size:12px;margin-left:8px}
+        iframe, img, pre{display:block;width:100%;height:calc(100% - 46px);border:0;background:#0b1220}
+        a.dl{position:fixed;bottom:10px;left:10px;color:#bfeaff;text-decoration:none;font:13px system-ui}
+      </style>
+      <div class="bar">${kind} · ${name}<span class="hint">Si no se ve, usa “Descargar”.</span></div>
+      ${isPDF ? `<iframe id="v" type="application/pdf"></iframe>` :
+        isImage ? `<img id="v" alt="vista">` :
+        isText  ? `<iframe id="v"></iframe>` :
+                  `<div class="bar">Tipo no visualizable; se habilitará descarga.</div>`}
+      <a class="dl" id="dl" download="${name}">Descargar</a>
+      <script>
+        window._setSrc = function(u){
+          var v = document.getElementById('v');
+          if(v){
+            if(v.tagName === 'IMG'){ v.src = u; }
+            else { v.src = u; }
+          }
+          var a = document.getElementById('dl'); a.href = u;
+        };
+      </`+`script>`;
+    win.document.open();
+    win.document.write(shell);
+    win.document.close();
+
+    // Inyecta la URL del blob al visor
+    try { win._setSrc(url); }
+    catch(e){
+      // Fallback: si no podemos acceder al window, forzamos descarga
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
     }
-    setTimeout(()=>URL.revokeObjectURL(url), 5*60*1000);
-  }catch(err){
-    console.error(err);
-    if(preWin) preWin.close();
-    toast('No se pudo abrir el archivo');
+  } else {
+    // Pop-up bloqueado: descarga/abre en la misma pestaña
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
   }
+
+  // Limpia el blob URL luego de un rato
+  setTimeout(()=>URL.revokeObjectURL(url), 5*60*1000);
 }
+
+// (no toques esto: listeners existentes)
 document.querySelectorAll('button[data-view]').forEach(btn=>{
   btn.addEventListener('click', (ev)=> viewSingleFile(btn.getAttribute('data-view'), ev));
 });
+</script>
 
 /*************** Backup / Restore ***************/
 $('#exportBtn').onclick = async ()=>{

@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>ACONFEX MSP</title>
+<title>ACONFEX · MSP ULTRA-LITE</title>
 <meta name="theme-color" content="#0f172a" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <style>
 :root{
   --bg:#0b1220; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb;
@@ -56,7 +56,8 @@ button:hover{background:#0c3055}
 .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;background:#081122;border:1px solid #263850;border-radius:6px;padding:1px 6px}
 .footer{color:#92a7be;font-size:12px;margin-top:4px}
 .toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#0b2a3f;color:#d8f0ff;border:1px solid #1d4763;padding:10px 14px;border-radius:10px;display:none}
-/* Lista de OTROS */
+
+/* Lista OTROS */
 .otros-list{margin-top:6px;display:flex;flex-direction:column;gap:6px}
 .adj-item{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border);background:#0a1324;border-radius:8px;padding:6px 8px}
 .adj-name{font-size:12px;color:#cdd9e5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%}
@@ -67,8 +68,8 @@ button:hover{background:#0c3055}
 <header>
   <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div>
-      <h1>ACONFEX DOCUMENTACION MSP</h1>
-      <div class="subtitle">Una sola página, datos guardados en el teléfono </div>
+      <h1>ACONFEX · MSP ULTRA-LITE</h1>
+      <div class="subtitle">Una sola página, datos guardados en tu teléfono (sin servidores)</div>
     </div>
     <div class="row" style="min-width:320px;align-items:center">
       <label for="weekSelect" class="muted" style="min-width:120px">Semana (vista)</label>
@@ -193,7 +194,7 @@ button:hover{background:#0c3055}
         </div>
       </div>
 
-      <!-- OTROS -->
+      <!-- OTROS (con VER/ELIMINAR por archivo) -->
       <div class="docbox" data-doctype="OTROS">
         <div class="dochead">
           <span class="docname">Otros (PDF/PNG/JPG)</span>
@@ -201,7 +202,8 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" multiple data-file="OTROS" />
         <div class="help" id="info_OTROS"></div>
-        <div id="otrosList" class="otros-list"></div>
+        <!-- Lista dinámica de adjuntos con botones "Ver" y "Eliminar" -->
+        <div id="otrosList" class="otros-list"><div class="help">Sin adjuntos</div></div>
       </div>
     </div>
 
@@ -232,15 +234,14 @@ button:hover{background:#0c3055}
 
 <div class="toast" id="toast"></div>
 
-<!-- pdf-lib -->
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script>
-/*************** Utils ***************/
+/* ------------- Utils ------------- */
 const $ = (q)=>document.querySelector(q);
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',1800); }
 function weekOptions(sel){ sel.innerHTML=''; for(let i=1;i<=52;i++){ const op=document.createElement('option'); op.value=String(i).padStart(2,'0'); op.textContent='Semana '+String(i).padStart(2,'0'); sel.appendChild(op);} }
 
-/*************** Storage (IndexedDB con fallback en memoria) ***************/
+/* ------------- IndexedDB (con fallback memoria) ------------- */
 let db=null, useMemory=false;
 let memRecords=new Map(), memFiles=new Map();
 
@@ -257,13 +258,13 @@ function openDB(){
     req.onerror = ()=>reject(req.error);
   });
 }
-function tx(store,mode='readonly'){ return db.transaction(store,mode).objectStore(store); }
+function tx(name,mode='readonly'){ return db.transaction(name,mode).objectStore(name); }
 
 let saveRecord = async (rec)=>{ await new Promise((res,rej)=>{ const r=tx('records','readwrite').put(rec); r.onsuccess=res; r.onerror=()=>rej(r.error); }); };
 let getRecord  = async (id)=> await new Promise((res,rej)=>{ const r=tx('records').get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); });
 let deleteRecord = async (id)=>{ await new Promise((res,rej)=>{ const r=tx('records','readwrite').delete(id); r.onsuccess=res; r.onerror=()=>rej(r.error); }); const all=await getAllFilesFor(id); for(const f of all){ await new Promise((res,rej)=>{ const r=tx('files','readwrite').delete(f.fileId); r.onsuccess=res; r.onerror=()=>rej(r.error); }); } };
 let getWeekRecords = async (week)=> await new Promise((res,rej)=>{ const out=[]; const req=tx('records').openCursor(); req.onsuccess=(e)=>{ const c=e.target.result; if(c){ if(String(c.value.week)===String(week)) out.push(c.value); c.continue(); } else res(out.sort((a,b)=>a.cntr.localeCompare(b.cntr))); }; req.onerror=()=>rej(req.error); });
-let saveFile = async (id,docType,file)=>{ const key = (docType==='OTROS') ? `${id}:OTROS:${Date.now()}:${file.name}` : `${id}:${docType}`; const payload={fileId:key,id,docType,name:file.name,type:file.type,ts:Date.now()}; payload.blob=await file.arrayBuffer(); await new Promise((res,rej)=>{ const r=tx('files','readwrite').put(payload); r.onsuccess=res; r.onerror=()=>rej(r.error); }); };
+let saveFile = async (id,docType,file)=>{ const key=(docType==='OTROS')?`${id}:OTROS:${Date.now()}:${file.name}`:`${id}:${docType}`; const payload={fileId:key,id,docType,name:file.name,type:file.type,ts:Date.now()}; payload.blob=await file.arrayBuffer(); await new Promise((res,rej)=>{ const r=tx('files','readwrite').put(payload); r.onsuccess=res; r.onerror=()=>rej(r.error); }); };
 let getFile  = async (id,docType)=> await new Promise((res,rej)=>{ const r=tx('files').get(`${id}:${docType}`); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); });
 let getOtros = async (id)=> await new Promise((res,rej)=>{ const out=[]; const req=tx('files').openCursor(); req.onsuccess=(e)=>{ const c=e.target.result; if(c){ const v=c.value; if(v.id===id && v.docType==='OTROS') out.push(v); c.continue(); } else res(out); }; req.onerror=()=>rej(req.error); });
 let getAllFilesFor = async (id)=> await new Promise((res,rej)=>{ const out=[]; const req=tx('files').openCursor(); req.onsuccess=(e)=>{ const c=e.target.result; if(c){ if(c.value.id===id) out.push(c.value); c.continue(); } else res(out); }; req.onerror=()=>rej(req.error); });
@@ -272,57 +273,41 @@ function enableMemory(){
   useMemory=true;
   saveRecord = async (rec)=>{ memRecords.set(rec.id, rec); };
   getRecord  = async (id)=> memRecords.get(id)||null;
-  deleteRecord = async (id)=>{ memRecords.delete(id); for(const k of [...memFiles.keys()]) if(k.startsWith(id+':')) memFiles.delete(k); };
-  getWeekRecords = async (week)=> [...memRecords.values()].filter(r=>String(r.week)===String(week)).sort((a,b)=>a.cntr.localeCompare(b.cntr));
-  saveFile = async (id,docType,file)=>{ const key = (docType==='OTROS') ? `${id}:OTROS:${Date.now()}:${file.name}` : `${id}:${docType}`; const ab = await file.arrayBuffer(); memFiles.set(key,{fileId:key,id,docType,name:file.name,type:file.type,ts:Date.now(),blob:ab}); };
-  getFile  = async (id,docType)=> memFiles.get(`${id}:${docType}`)||null;
+  deleteRecord = async (id)=>{ memRecords.delete(id); for (const k of [...memFiles.keys()]) if(k.startsWith(id+':')) memFiles.delete(k); };
+  getWeekRecords = async (w)=> [...memRecords.values()].filter(r=>String(r.week)===String(w)).sort((a,b)=>a.cntr.localeCompare(b.cntr));
+  saveFile = async (id,docType,file)=>{ const key=(docType==='OTROS')?`${id}:OTROS:${Date.now()}:${file.name}`:`${id}:${docType}`; const ab=await file.arrayBuffer(); memFiles.set(key,{fileId:key,id,docType,name:file.name,type:file.type,ts:Date.now(),blob:ab}); };
+  getFile = async (id,docType)=> memFiles.get(`${id}:${docType}`)||null;
   getOtros = async (id)=> [...memFiles.values()].filter(v=>v.id===id && v.docType==='OTROS');
   getAllFilesFor = async (id)=> [...memFiles.values()].filter(v=>v.id===id);
 }
 
-/*************** UI / Estado ***************/
+/* ------------- Estado/UI ------------- */
 const SINGLE_DOCS = ['BL','FACT','PACKING','FITO','SEGURO','LOGGER'];
-
-function lightFor(rec){
-  const hasBL=!!rec.files.BL, hasFITO=!!rec.files.FITO, hasSEGURO=!!rec.files.SEGURO;
-  const n=[hasBL,hasFITO,hasSEGURO].filter(Boolean).length;
-  if(n>=3) return 'green'; if(n>=2) return 'yellow'; return 'red';
-}
+function lightFor(rec){ const n=[rec.files.BL,rec.files.FITO,rec.files.SEGURO].filter(Boolean).length; return n>=3?'green':(n>=2?'yellow':'red'); }
 let currentWeek='01', currentId=null;
 
 async function inflateRecord(base){
-  const id=base.id; const files={};
-  for(const k of SINGLE_DOCS){
-    const f = await getFile(id,k); files[k]=!!f;
-  }
-  const otros = await getOtros(id); files.OTROS = otros.length;
+  const id=base.id, files={};
+  for(const k of SINGLE_DOCS){ files[k] = !!(await getFile(id,k)); }
+  files.OTROS = (await getOtros(id)).length;
   return {...base, files};
 }
-function setDelEnabled(kind, enabled){
-  const btn=document.querySelector(`button[data-del="${kind}"]`);
-  if(btn){ btn.disabled = !enabled; }
-}
-function setViewEnabled(kind, enabled){
-  const btn=document.querySelector(`button[data-view="${kind}"]`);
-  if(btn){ btn.disabled = !enabled; }
-}
+function setDelEnabled(k, on){ const b=document.querySelector(`button[data-del="${k}"]`); if(b) b.disabled=!on; }
+function setViewEnabled(k, on){ const b=document.querySelector(`button[data-view="${k}"]`); if(b) b.disabled=!on; }
 function updateDocState(k, ok, info){
-  const chip = document.getElementById('state_'+k); if(!chip) return;
-  chip.className = 'chip ' + (ok? 'ok':'miss');
-  chip.innerHTML = ok ? 'cargado' : 'faltante';
-  const inf = document.getElementById('info_'+k); if(inf) inf.textContent = info||'';
-  if(SINGLE_DOCS.includes(k)){ setDelEnabled(k, !!ok); setViewEnabled(k, !!ok); }
+  const chip=$('#state_'+k); if(!chip) return;
+  chip.className='chip '+(ok?'ok':'miss'); chip.textContent = ok?'cargado':'faltante';
+  const inf=$('#info_'+k); if(inf) inf.textContent = info||'';
+  if(SINGLE_DOCS.includes(k)){ setDelEnabled(k,!!ok); setViewEnabled(k,!!ok); }
 }
 function updateOtrosState(n, names){
-  const chip = document.getElementById('state_OTROS');
-  if(n>0){ chip.className='chip ok'; chip.innerHTML=(n||0)+' adjuntos'; }
-  else { chip.className='chip'; chip.textContent='0 adjuntos'; }
-  const inf = document.getElementById('info_OTROS'); if(names&&names.length) inf.textContent=names.join(', '); else if(inf) inf.textContent='';
+  const chip=$('#state_OTROS'); if(n>0){ chip.className='chip ok'; chip.textContent=n+' adjuntos'; } else { chip.className='chip'; chip.textContent='0 adjuntos'; }
+  const inf=$('#info_OTROS'); if(inf) inf.textContent = names?.join(', ') || '';
 }
 function clearForm(){
-  currentId=null; $('#f_cntr').value=''; $('#f_cliente').value=''; $('#f_destino').value=''; $('#f_etd').value=''; $('#f_notas').value='';
+  currentId=null; ['f_cntr','f_cliente','f_destino','f_etd','f_notas'].forEach(id=>$('#'+id).value='');
   for(const k of SINGLE_DOCS) updateDocState(k,false,''); updateOtrosState(0,[]);
-  const list = document.getElementById('otrosList'); if(list) list.innerHTML='';
+  $('#otrosList').innerHTML='<div class="help">Sin adjuntos</div>';
 }
 function loadIntoForm(rec){
   currentId=rec.id; $('#f_week').value=rec.week; $('#f_cntr').value=rec.cntr; $('#f_cliente').value=rec.cliente||''; $('#f_destino').value=rec.destino||''; $('#f_etd').value=rec.etd||''; $('#f_notas').value=rec.notas||'';
@@ -331,419 +316,246 @@ function loadIntoForm(rec){
 }
 async function refreshList(){
   const list=$('#list'); list.innerHTML='';
-  const data = await getWeekRecords(currentWeek);
+  const data=await getWeekRecords(currentWeek);
   if(!data.length){ $('#empty').style.display='block'; $('#wkTitle').textContent=currentWeek; return; }
   $('#empty').style.display='none'; $('#wkTitle').textContent=currentWeek;
   for(const r of data){
-    const rec = await inflateRecord(r);
-    const item=document.createElement('div'); item.className='record';
-    const light=document.createElement('div'); light.className='light '+lightFor(rec);
-    const head=document.createElement('div'); head.className='rec-head';
-    head.innerHTML=`<div class="rec-title">${rec.cntr}</div><div class="muted">ETD ${rec.etd||'-'}</div><div class="muted">${rec.cliente||''} · ${rec.destino||''}</div>`;
-    const right=document.createElement('div'); right.style.marginLeft='auto'; right.innerHTML=`<button class="btn-ghost" data-open="${rec.id}">Abrir</button>`;
-    item.appendChild(light); item.appendChild(head); item.appendChild(right);
-    list.appendChild(item);
+    const rec=await inflateRecord(r);
+    const el=document.createElement('div'); el.className='record';
+    el.innerHTML=`
+      <div class="light ${lightFor(rec)}"></div>
+      <div class="rec-head">
+        <div class="rec-title">${rec.cntr}</div>
+        <div class="muted">ETD ${rec.etd||'-'}</div>
+        <div class="muted">${rec.cliente||''} · ${rec.destino||''}</div>
+      </div>
+      <div style="margin-left:auto"><button class="btn-ghost" data-open="${rec.id}">Abrir</button></div>`;
+    list.appendChild(el);
   }
-  list.querySelectorAll('button[data-open]').forEach(btn=>{
-    btn.onclick=async()=>{ const rec = await getRecord(btn.getAttribute('data-open')); if(rec) loadIntoForm(rec); };
-  });
+  list.querySelectorAll('[data-open]').forEach(b=>b.onclick=async()=>{ const rec=await getRecord(b.dataset.open); if(rec) loadIntoForm(rec); });
 }
 
-/*************** Inicio ***************/
+/* ------------- Inicio ------------- */
 window.addEventListener('load', async ()=>{
   weekOptions($('#weekSelect')); weekOptions($('#f_week'));
   currentWeek = new URL(location.href).searchParams.get('wk') || '01';
   $('#weekSelect').value=currentWeek; $('#f_week').value=currentWeek;
-
-  try{ await openDB(); }
-  catch(e){ console.warn('IndexedDB no disponible, usando memoria:', e); enableMemory(); }
-
+  try{ await openDB(); } catch(e){ enableMemory(); }
   refreshList();
 });
 
-/*************** Eventos UI ***************/
-$('#weekSelect').addEventListener('change', (e)=>{ currentWeek=e.target.value; refreshList(); });
-$('#newBtn').onclick = ()=>{ clearForm(); $('#f_week').value=currentWeek; };
-$('#newClearBtn').onclick = ()=> clearForm();
+/* ------------- Eventos formulario ------------- */
+$('#weekSelect').addEventListener('change', e=>{ currentWeek=e.target.value; refreshList(); });
+$('#newBtn').onclick=()=>{ clearForm(); $('#f_week').value=currentWeek; };
+$('#newClearBtn').onclick=()=> clearForm();
 
-$('#saveBtn').onclick = async ()=>{
+$('#saveBtn').onclick=async()=>{
   const week=$('#f_week').value||currentWeek;
   const cntr=($('#f_cntr').value||'').toUpperCase().trim();
   if(!cntr){ toast('CNTR requerido'); return; }
   const rec={ id: currentId||`${week}:${cntr}`, week, cntr,
-    cliente: $('#f_cliente').value.trim(),
-    destino: $('#f_destino').value.trim(),
-    etd: $('#f_etd').value,
-    notas: $('#f_notas').value.trim(),
-    ts: Date.now()
+    cliente: $('#f_cliente').value.trim(), destino: $('#f_destino').value.trim(),
+    etd: $('#f_etd').value, notas: $('#f_notas').value.trim(), ts: Date.now()
   };
   await saveRecord(rec); currentId=rec.id; toast('Guardado ✔'); refreshList(); refreshOtrosList();
 };
 
-$('#deleteBtn').onclick = async ()=>{
+$('#deleteBtn').onclick=async()=>{
   if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
   if(confirm('¿Eliminar este contenedor y sus archivos?')){ await deleteRecord(currentId); clearForm(); refreshList(); toast('Eliminado'); }
 };
 
-/* Subida de archivos con tope=1 (salvo OTROS) */
-Array.from(document.querySelectorAll('input[type=file][data-file]')).forEach(inp=>{
-  inp.addEventListener('change', async (e)=>{
-    const files=Array.from(e.target.files||[]); if(!files.length) return;
+/* Subidas (tope=1 salvo OTROS) */
+document.querySelectorAll('input[type=file][data-file]').forEach(inp=>{
+  inp.addEventListener('change', async(e)=>{
+    const files=[...e.target.files||[]]; if(!files.length) return;
     const week=$('#f_week').value||currentWeek;
     const cntr=($('#f_cntr').value||'').toUpperCase().trim();
     if(!cntr){ toast('Primero escribe el CNTR'); e.target.value=''; return; }
     const id=currentId||`${week}:${cntr}`;
     if(!currentId){ await saveRecord({id,week,cntr,ts:Date.now()}); currentId=id; }
-    const kind=e.target.getAttribute('data-file');
+    const kind=e.target.dataset.file;
 
     if(SINGLE_DOCS.includes(kind)){
-      const existing = await getFile(id, kind);
-      if(existing){
-        const ok = confirm(`Ya existe ${kind}. ¿Reemplazar el archivo cargado?`);
-        if(!ok){ e.target.value=''; return; }
-      }
-      const f = files[0]; // tope 1
-      await saveFile(id,kind,f);
-      updateDocState(kind,true,'cargado: '+f.name);
-      toast(`${kind} actualizado`);
-    }else{
-      const names=[];
-      for(const f of files){ await saveFile(id,kind,f); names.push(f.name); }
+      const existing=await getFile(id,kind);
+      if(existing && !confirm(`Ya existe ${kind}. ¿Reemplazar?`)){ e.target.value=''; return; }
+      const f=files[0]; await saveFile(id,kind,f);
+      updateDocState(kind,true,'cargado: '+f.name); toast(`${kind} actualizado`);
+    }else{ // OTROS (múltiples)
+      for(const f of files) await saveFile(id,'OTROS',f);
       const otros=await getOtros(id);
       updateOtrosState(otros.length, otros.map(o=>o.name));
-      await refreshOtrosList();
-      toast(`Adjuntos agregados (${names.length})`);
+      refreshOtrosList(); toast(`Adjuntos agregados (${files.length})`);
     }
     refreshList(); e.target.value='';
   });
 });
 
-/* Eliminar archivo individual (solo SINGLE_DOCS) */
+/* Eliminar/ver SINGLE_DOCS */
 async function deleteSingleFile(kind){
   if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
-  const ok = confirm(`¿Eliminar el archivo de ${kind}?`);
-  if(!ok) return;
-  const key = `${currentId}:${kind}`;
-  if(useMemory){
-    memFiles.delete(key);
-  }else{
-    await new Promise((res,rej)=>{ const r=tx('files','readwrite').delete(key); r.onsuccess=res; r.onerror=()=>rej(r.error); });
-  }
-  updateDocState(kind,false,'');
-  toast(`${kind} eliminado`);
-  refreshList();
+  if(!confirm(`¿Eliminar ${kind}?`)) return;
+  const key=`${currentId}:${kind}`;
+  if(useMemory) memFiles.delete(key);
+  else await new Promise((res,rej)=>{ const r=tx('files','readwrite').delete(key); r.onsuccess=res; r.onerror=()=>rej(r.error); });
+  updateDocState(kind,false,''); refreshList(); toast(`${kind} eliminado`);
 }
-document.querySelectorAll('button[data-del]').forEach(btn=>{
-  btn.addEventListener('click', ()=> deleteSingleFile(btn.getAttribute('data-del')));
-});
+document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteSingleFile(b.dataset.del));
 
-/*************** OTROS: ver / eliminar por ítem ***************/
+function openBlobInViewer(name,type,buf,label){
+  const isPDF=(type||'').includes('pdf')||/\.pdf$/i.test(name||'');
+  const isImage=(type||'').startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(name||'');
+  const blob=new Blob([buf],{type:isPDF?'application/pdf':(type||'application/octet-stream')});
+  const url=URL.createObjectURL(blob);
+  let w=null; try{w=window.open('', '_blank');}catch{}
+  const html=`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${label} – ${name}</title>
+  <style>html,body{height:100%;margin:0;background:#0b1220} .bar{padding:10px 12px;color:#e5e7eb;background:#0f172a;border-bottom:1px solid #1f2937;font:14px system-ui}
+  .wrap{height:calc(100% - 44px)} iframe,img{width:100%;height:100%;border:0;background:#0b1220} a{position:fixed;bottom:10px;left:10px;color:#bfeaff;text-decoration:none;font:13px system-ui}</style>
+  <div class="bar">${label} · ${name}</div>
+  <div class="wrap">${isImage?'<img id="v">':'<iframe id="v"></iframe>'}</div>
+  <a id="dl" download="${name}">Descargar</a>`;
+  if(w){ w.document.open(); w.document.write(html); w.document.close(); const v=w.document.getElementById('v'); const a=w.document.getElementById('dl'); if(v) v.src=url; if(a) a.href=url; }
+  else { const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=name; a.click(); a.remove(); }
+  setTimeout(()=>URL.revokeObjectURL(url),300000);
+}
+async function viewSingle(kind){
+  if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
+  const f=await getFile(currentId,kind); if(!f){ toast(`No hay archivo de ${kind}`); return; }
+  openBlobInViewer(f.name,f.type,f.blob,kind);
+}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>viewSingle(b.dataset.view));
+
+/* OTROS: lista con VER/ELIMINAR por item */
 async function getFileById(fileId){
-  if(useMemory) return memFiles.get(fileId) || null;
-  return await new Promise((res,rej)=>{
-    const r = tx('files').get(fileId);
-    r.onsuccess = ()=> res(r.result || null);
-    r.onerror   = ()=> rej(r.error);
-  });
+  if(useMemory) return memFiles.get(fileId)||null;
+  return await new Promise((res,rej)=>{ const r=tx('files').get(fileId); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); });
 }
 async function deleteFileById(fileId){
   if(useMemory){ memFiles.delete(fileId); return; }
-  await new Promise((res,rej)=>{
-    const r = tx('files','readwrite').delete(fileId);
-    r.onsuccess = res; r.onerror = ()=>rej(r.error);
-  });
+  await new Promise((res,rej)=>{ const r=tx('files','readwrite').delete(fileId); r.onsuccess=res; r.onerror=()=>rej(r.error); });
 }
 async function refreshOtrosList(){
-  const list = document.getElementById('otrosList');
-  if(!list){ return; }
-  if(!currentId){ list.innerHTML = ''; updateOtrosState(0,[]); return; }
-
-  const items = await getOtros(currentId);
+  const cont=$('#otrosList'); if(!currentId){ cont.innerHTML='<div class="help">Sin adjuntos</div>'; updateOtrosState(0,[]); return; }
+  const items=await getOtros(currentId);
   updateOtrosState(items.length, items.map(o=>o.name));
-
-  if(items.length === 0){
-    list.innerHTML = '<div class="help">Sin adjuntos</div>';
-    return;
-  }
-  list.innerHTML = '';
+  if(items.length===0){ cont.innerHTML='<div class="help">Sin adjuntos</div>'; return; }
+  cont.innerHTML='';
   items.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
-
   for(const it of items){
-    const row = document.createElement('div');
-    row.className = 'adj-item';
-    row.innerHTML = `
-      <span class="adj-name" title="${it.name}">${it.name}</span>
+    const row=document.createElement('div'); row.className='adj-item';
+    row.innerHTML=`<span class="adj-name" title="${it.name}">${it.name}</span>
       <div class="adj-actions">
         <button class="btn-mini" data-view-otros="${it.fileId}">Ver</button>
         <button class="btn-mini btn-danger" data-del-otros="${it.fileId}">Eliminar</button>
       </div>`;
-    list.appendChild(row);
+    cont.appendChild(row);
   }
-
-  list.querySelectorAll('[data-view-otros]').forEach(btn=>{
-    btn.onclick = ()=> viewOtrosFile(btn.getAttribute('data-view-otros'));
-  });
-  list.querySelectorAll('[data-del-otros]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const fid = btn.getAttribute('data-del-otros');
-      if(confirm('¿Eliminar este adjunto?')){
-        await deleteFileById(fid);
-        refreshOtrosList();
-        toast('Adjunto eliminado');
-      }
-    };
-  });
+  cont.querySelectorAll('[data-view-otros]').forEach(b=>b.onclick=async()=>{ const f=await getFileById(b.dataset.viewOtros); if(f) openBlobInViewer(f.name,f.type,f.blob,'OTROS'); });
+  cont.querySelectorAll('[data-del-otros]').forEach(b=>b.onclick=async()=>{ if(confirm('¿Eliminar adjunto?')){ await deleteFileById(b.dataset.delOtros); refreshOtrosList(); toast('Adjunto eliminado'); }});
 }
 
-/* Visores compatibles iPhone/Safari */
-function viewGenericBlob(name, type, arrayBuffer, kindLabel){
-  const lower = (name||'').toLowerCase();
-  const mime  = (type||'application/octet-stream').toLowerCase();
-  const isPDF   = mime.includes('pdf') || /\.pdf$/i.test(lower);
-  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(lower);
-  const isText  = mime.startsWith('text/')  || /\.(csv|txt|log)$/i.test(lower);
-
-  const blob = new Blob([arrayBuffer], { type: isPDF ? 'application/pdf' : (type||'application/octet-stream') });
-  const url  = URL.createObjectURL(blob);
-
-  let win = null; try { win = window.open('', '_blank'); } catch {}
-  const viewerHTML = `<!doctype html><html><head><meta charset="utf-8">
-  <title>${kindLabel} – ${name}</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    html,body{height:100%;margin:0;background:#0b1220;color:#e5e7eb}
-    .bar{padding:10px 12px;font:14px system-ui;background:#0f172a;border-bottom:1px solid #1f2937}
-    .hint{color:#9fb3c8;font-size:12px;margin-left:8px}
-    .wrap{height:calc(100% - 46px)}
-    iframe, img{display:block;width:100%;height:100%;border:0;background:#0b1220}
-    a.dl{position:fixed;bottom:10px;left:10px;color:#bfeaff;text-decoration:none;font:13px system-ui}
-  </style></head><body>
-    <div class="bar">${kindLabel} · ${name}<span class="hint">Si no se ve, usa “Descargar”.</span></div>
-    <div class="wrap">${isImage ? '<img id="v" alt="vista">' : '<iframe id="v"></iframe>'}</div>
-    <a class="dl" id="dl" download="${name}">Descargar</a>
-  </body></html>`;
-
-  if(win){
-    win.document.open(); win.document.write(viewerHTML); win.document.close();
-    try{
-      const v = win.document.getElementById('v');
-      const a = win.document.getElementById('dl');
-      if(v){ if(v.tagName==='IMG') v.src = url; else v.src = url; }
-      if(a){ a.href = url; }
-    }catch(e){
-      const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=name; document.body.appendChild(a); a.click(); a.remove();
-    }
-  }else{
-    const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=name; document.body.appendChild(a); a.click(); a.remove();
-  }
-  setTimeout(()=>URL.revokeObjectURL(url), 5*60*1000);
-}
-async function viewOtrosFile(fileId){
-  const f = await getFileById(fileId);
-  if(!f){ toast('Adjunto no encontrado'); return; }
-  viewGenericBlob(f.name, f.type, f.blob, 'OTROS');
-}
-async function viewSingleFile(kind){
-  if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
-  const f = await getFile(currentId, kind);
-  if(!f){ toast(`No hay archivo de ${kind}`); return; }
-  viewGenericBlob(f.name, f.type, f.blob, kind);
-}
-document.querySelectorAll('button[data-view]').forEach(btn=>{
-  btn.addEventListener('click', ()=> viewSingleFile(btn.getAttribute('data-view')));
-});
-
-/*************** Backup / Restore ***************/
-$('#exportBtn').onclick = async ()=>{
-  const records = useMemory ? [...memRecords.values()] : await new Promise((res,rej)=>{ const out=[]; const req=tx('records').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){out.push(c.value); c.continue();} else res(out)}; req.onerror=()=>rej(req.error); });
-  const files = useMemory ? [...memFiles.values()].map(v=>({...v, dataBase64: arrayBufferToBase64(v.blob)})) :
-    await new Promise((res,rej)=>{ const out=[]; const req=tx('files').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){ const v=c.value; const b64=arrayBufferToBase64(v.blob); out.push({...v,dataBase64:b64}); c.continue(); } else res(out) }; req.onerror=()=>rej(req.error); });
-  const payload={version:'1.3', exportedAt:new Date().toISOString(), records, files};
+/* Backup/Restore */
+$('#exportBtn').onclick=async()=>{
+  const records = useMemory ? [...memRecords.values()] : await new Promise((res,rej)=>{ const out=[]; const c=tx('records').openCursor(); c.onsuccess=e=>{ const cur=e.target.result; if(cur){ out.push(cur.value); cur.continue(); } else res(out); }; c.onerror=()=>rej(c.error); });
+  const files = useMemory ? [...memFiles.values()].map(v=>({...v,dataBase64:arrayBufferToBase64(v.blob)})) :
+    await new Promise((res,rej)=>{ const out=[]; const c=tx('files').openCursor(); c.onsuccess=e=>{ const cur=e.target.result; if(cur){ const v=cur.value; out.push({...v,dataBase64:arrayBufferToBase64(v.blob)}); cur.continue(); } else res(out); }; c.onerror=()=>rej(c.error); });
+  const payload={version:'1.3',exportedAt:new Date().toISOString(),records,files};
   const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='aconfex_backup.json'; a.click(); URL.revokeObjectURL(a.href);
-  toast('Respaldo exportado');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='aconfex_backup.json'; a.click(); URL.revokeObjectURL(a.href); toast('Respaldo exportado');
 };
-$('#importInput').onchange = async (e)=>{
-  const file=e.target.files[0]; if(!file) return; const text=await file.text();
+$('#importInput').onchange=async(e)=>{
+  const f=e.target.files[0]; if(!f) return; const txt=await f.text();
   try{
-    const data=JSON.parse(text); if(!data||!Array.isArray(data.records)||!Array.isArray(data.files)) throw new Error('Formato inválido');
+    const data=JSON.parse(txt);
     if(useMemory){
       memRecords=new Map(data.records.map(r=>[r.id,r]));
-      memFiles=new Map(data.files.map(f=>{ const ab=base64ToArrayBuffer(f.dataBase64); const k=f.fileId; return [k,{...f,blob:ab}]; }));
+      memFiles=new Map(data.files.map(x=>[x.fileId,{...x,blob:base64ToArrayBuffer(x.dataBase64)}]));
     }else{
-      for(const r of data.records){
-        await new Promise((res,rej)=>{ const req=tx('records','readwrite').put(r); req.onsuccess=res; req.onerror=()=>rej(req.error); });
-      }
-      for(const f of data.files){
-        const put={...f}; put.blob=base64ToArrayBuffer(f.dataBase64); delete put.dataBase64;
-        await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); req.onsuccess=res; req.onerror=()=>rej(req.error); });
-      }
+      for(const r of data.records){ await new Promise((res,rej)=>{ const q=tx('records','readwrite').put(r); q.onsuccess=res; q.onerror=()=>rej(q.error); }); }
+      for(const x of data.files){ const put={...x,blob:base64ToArrayBuffer(x.dataBase64)}; delete put.dataBase64; await new Promise((res,rej)=>{ const q=tx('files','readwrite').put(put); q.onsuccess=res; q.onerror=()=>rej(q.error); }); }
     }
     toast('Respaldo restaurado'); refreshList(); refreshOtrosList();
-  }catch(err){ console.error(err); toast('Error al importar'); }
+  }catch{ toast('Error al importar'); }
   e.target.value='';
 };
-function arrayBufferToBase64(buffer){ const bytes=new Uint8Array(buffer); let binary=''; const chunk=0x8000; for(let i=0;i<bytes.length;i+=chunk){ binary+=String.fromCharCode.apply(null, bytes.subarray(i,i+chunk)); } return btoa(binary); }
-function base64ToArrayBuffer(b64){ const binary=atob(b64); const len=binary.length; const bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=binary.charCodeAt(i); return bytes.buffer; }
+function arrayBufferToBase64(buf){ const b=new Uint8Array(buf); let s=''; const ch=0x8000; for(let i=0;i<b.length;i+=ch){ s+=String.fromCharCode.apply(null,b.subarray(i,i+ch)); } return btoa(s); }
+function base64ToArrayBuffer(b64){ const bin=atob(b64), len=bin.length, out=new Uint8Array(len); for(let i=0;i<len;i++) out[i]=bin.charCodeAt(i); return out.buffer; }
 
-/*************** Autosave + PDF / Compartir ***************/
+/* PDF / Compartir (orden: FACT, BL, FITO, SEGURO, PACKING, LOGGER, OTROS) */
 async function ensureSavedFromForm(){
   const week=$('#f_week').value||currentWeek;
   const cntr=($('#f_cntr').value||'').toUpperCase().trim();
   if(!cntr){ toast('CNTR requerido'); return null; }
   const rec={ id: currentId||`${week}:${cntr}`, week, cntr,
-    cliente: $('#f_cliente').value.trim(),
-    destino: $('#f_destino').value.trim(),
-    etd: $('#f_etd').value,
-    notas: $('#f_notas').value.trim(),
-    ts: Date.now()
+    cliente: $('#f_cliente').value.trim(), destino: $('#f_destino').value.trim(),
+    etd: $('#f_etd').value, notas: $('#f_notas').value.trim(), ts: Date.now()
   };
   await saveRecord(rec); currentId=rec.id; return rec.id;
 }
-
-/* PDF (orden: FACT, BL, FITO, SEGURO, PACKING, LOGGER, OTROS) */
 async function buildUnifiedPDF(id){
-  const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
-  const files = await getAllFilesFor(id);
+  const rec=await getRecord(id); if(!rec){ toast('Guarda el contenedor'); return null; }
+  const files=await getAllFilesFor(id);
+  const order={FACT:1,BL:2,FITO:3,SEGURO:4,PACKING:5,LOGGER:6,OTROS:7};
+  files.sort((a,b)=>(order[a.docType]||99)-(order[b.docType]||99)||(a.name||'').localeCompare(b.name||''));
 
-  const order = { FACT:1, BL:2, FITO:3, SEGURO:4, PACKING:5, LOGGER:6, OTROS:7 };
-  files.sort((a,b)=>
-    (order[a.docType]||99)-(order[b.docType]||99) ||
-    (a.name||'').localeCompare(b.name||'')
-  );
+  const {PDFDocument,StandardFonts,rgb}=PDFLib; const pdfDoc=await PDFDocument.create(); const font=await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const A4_W=595.28, A4_H=841.89;
+  const page=pdfDoc.addPage([A4_W,A4_H]);
+  page.drawRectangle({x:0,y:0,width:A4_W,height:A4_H,color:rgb(0.06,0.08,0.13)});
+  const draw=(p,t,x,y,s=12,c=rgb(0.94,0.98,1))=>p.drawText(String(t||''),{x,y,size:s,font,color:c});
+  const line=(p,x1,y1,x2,y2)=>p.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},thickness:1,color:rgb(0.16,0.24,0.35)});
+  const pill=(p,x,y,w,h,col)=>{ const r=h/2; p.drawRectangle({x:x+r,y,width:w-2*r,height:h,color:col}); p.drawCircle({x:x+r,y:y+r,size:r,color:col}); p.drawCircle({x:x+w-r,y:y+r,size:r,color:col}); };
+  draw(page,'ACONFEX · DOCUMENTACIÓN',48,A4_H-72,28);
 
-  const { PDFDocument, StandardFonts, rgb } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const A4_W = 595.28, A4_H = 841.89;
+  const hasBL=files.some(f=>f.docType==='BL'), hasFITO=files.some(f=>f.docType==='FITO'), hasSEGURO=files.some(f=>f.docType==='SEGURO');
+  const n=[hasBL,hasFITO,hasSEGURO].filter(Boolean).length; let status='ROJO', col=rgb(0.94,0.27,0.27); if(n===3){status='VERDE'; col=rgb(0.13,0.77,0.37);} else if(n===2){status='AMARILLO'; col=rgb(0.96,0.62,0.04);}
+  const text=`OK para embarque: ${status}`; const w=Math.max(240, font.widthOfTextAtSize(text,13)+48); const x=A4_W-48-w, y=A4_H-120; pill(page,x,y,w,36,col); draw(page,text,x+16,y+11.5,13,rgb(0,0,0));
 
-  const drawText = (page, txt, x, y, size=12, color=rgb(0.94,0.98,1)) => page.drawText(String(txt||''), {x, y, size, font, color});
-  const drawRect = (page, x,y,w,h,color)=> page.drawRectangle({x,y,width:w,height:h,color});
-  const drawLine = (page, x1,y1,x2,y2,color=rgb(0.16,0.24,0.35),width=1) => page.drawLine({start:{x:x1,y:y1}, end:{x:x2,y:y2}, thickness:width, color});
-  const drawPill = (page, x,y,w,h,color)=>{ const r=h/2; drawRect(page,x+r,y,w-2*r,h,color); page.drawCircle({x:x+r,y:y+r,size:r,color}); page.drawCircle({x:x+w-r,y:y+r,size:r,color}); };
-  const label = (page, txt, x,y) => drawText(page, String(txt).toUpperCase(), x, y, 9, rgb(0.62,0.72,0.86));
-  const value = (page, txt, x,y, size=13) => drawText(page, String(txt||''), x, y, size, rgb(0.95,0.98,1));
-
-  const page = pdfDoc.addPage([A4_W, A4_H]);
-  drawRect(page, 0,0, A4_W, A4_H, rgb(0.06,0.08,0.13));
-
-  const hasBL=files.some(f=>f.docType==='BL');
-  const hasFITO=files.some(f=>f.docType==='FITO');
-  const hasSEGURO=files.some(f=>f.docType==='SEGURO');
-  const okCount=[hasBL,hasFITO,hasSEGURO].filter(Boolean).length;
-  let status='ROJO', sealColor=rgb(0.94,0.27,0.27);
-  if(okCount===3){status='VERDE';sealColor=rgb(0.13,0.77,0.37);}
-  else if(okCount===2){status='AMARILLO';sealColor=rgb(0.96,0.62,0.04);}
-
-  const M=48;
-  drawText(page, 'ACONFEX · DOCUMENTACIÓN', M, A4_H-72, 28);
-
-  const pillText = `OK para embarque: ${status}`;
-  const pillH = 36;
-  const pillW = Math.max(240, font.widthOfTextAtSize(pillText, 13) + 48);
-  const pillX = A4_W - M - pillW;
-  const pillY = A4_H - 120;
-  drawPill(page, pillX, pillY, pillW, pillH, sealColor);
-  drawText(page, pillText, pillX + 16, pillY + 11.5, 13, rgb(0,0,0));
-
-  const boxColor = rgb(0.07,0.11,0.18), border = rgb(0.16,0.24,0.35);
-  const panelTop = A4_H-180, rowGap=12, colGap=18, cellH=44;
-  const panelW = (A4_W - 2*M), cW = (panelW - colGap)/2; const leftX=M, rightX=M+cW+colGap;
-
-  drawRect(page,leftX,panelTop,cW,cellH,boxColor); drawLine(page,leftX,panelTop,leftX+cW,panelTop,border,1);
-  label(page,'Semana',leftX+10,panelTop+cellH-16); value(page,rec.week||'',leftX+10,panelTop+12);
-  drawRect(page,rightX,panelTop,cW,cellH,boxColor); drawLine(page,rightX,panelTop,rightX+cW,panelTop,border,1);
-  label(page,'CNTR',rightX+10,panelTop+cellH-16); value(page,rec.cntr||'',rightX+10,panelTop+12);
-
-  const row2Y = panelTop-(cellH+rowGap);
-  drawRect(page,leftX,row2Y,cW,cellH,boxColor); label(page,'Cliente',leftX+10,row2Y+cellH-16); value(page,rec.cliente||'',leftX+10,row2Y+12);
-  drawRect(page,rightX,row2Y,cW,cellH,boxColor); label(page,'Destino',rightX+10,row2Y+cellH-16); value(page,rec.destino||'', rightX+10,row2Y+12);
-
-  const row3Y = row2Y-(cellH+rowGap);
-  drawRect(page,leftX,row3Y,cW,cellH,boxColor); label(page,'ETD',leftX+10,row3Y+cellH-16); value(page,rec.etd||'',leftX+10,row3Y+12);
-
-  const notasX=leftX, notasY=row3Y-(cellH+rowGap), notasW=panelW, notasH=64;
-  drawRect(page,notasX,notasY,notasW,notasH,boxColor); label(page,'Notas',notasX+10,notasY+notasH-16);
-  const n=(rec.notas||''); const line1=String(n).slice(0,66), line2 = String(n).length>66 ? String(n).slice(66,132) : '';
-  value(page,line1,notasX+10,notasY+34); if(line2) value(page,line2,notasX+10,notasY+16);
-
-  drawLine(page,M,notasY-16,A4_W-M,notasY-16,border,1);
-
-  const includeY=notasY-34; drawText(page,'Incluye: Factura, BL, Fito, Seguro, Packing, Logger y Otros.', M, includeY, 11);
-  const required = ['FACT','BL','FITO','SEGURO','PACKING'];
-  const missing = required.filter(t=>!files.some(f=>f.docType===t));
-  if(missing.length){ drawText(page,'Pendientes: '+missing.join(', '), M, includeY-18, 11, rgb(0.96,0.62,0.04)); }
-
-  const ts=new Date(); let timeStr; try{ timeStr=ts.toLocaleString('es-CL',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}); }catch{ timeStr=ts.toISOString(); }
-  drawText(page, 'Generado: '+timeStr, M, includeY-46, 10);
+  const box=rgb(0.07,0.11,0.18); const top=A4_H-180, gap=12, colGap=18, h=44; const panelW=A4_W-96, cW=(panelW-colGap)/2, L=48, R=48+cW+colGap;
+  const label=(t,x,y)=>draw(page,String(t).toUpperCase(),x,y,9,rgb(0.62,0.72,0.86));
+  const val=(t,x,y,s=13)=>draw(page,String(t||''),x,y,s,rgb(0.95,0.98,1));
+  page.drawRectangle({x:L,y:top,width:cW,height:h,color:box}); line(page,L,top,L+cW,top); label('Semana',L+10,top+h-16); val(rec.week,L+10,top+12);
+  page.drawRectangle({x:R,y:top,width:cW,height:h,color:box}); line(page,R,top,R+cW,top); label('CNTR',R+10,top+h-16); val(rec.cntr,R+10,top+12);
+  const y2=top-(h+gap); page.drawRectangle({x:L,y:y2,width:cW,height:h,color:box}); label('Cliente',L+10,y2+h-16); val(rec.cliente,L+10,y2+12);
+  page.drawRectangle({x:R,y:y2,width:cW,height:h,color:box}); label('Destino',R+10,y2+h-16); val(rec.destino,R+10,y2+12);
+  const y3=y2-(h+gap); page.drawRectangle({x:L,y:y3,width:cW,height:h,color:box}); label('ETD',L+10,y3+h-16); val(rec.etd,L+10,y3+12);
+  const ny=y3-(h+gap); page.drawRectangle({x:L,y:ny,width:panelW,height:64,color:box}); label('Notas',L+10,ny+64-16); const nn=rec.notas||''; val(nn.slice(0,66),L+10,ny+34); if(nn.length>66) val(nn.slice(66,132),L+10,ny+16);
+  line(page,48,ny-16,A4_W-48,ny-16); draw(page,'Incluye: Factura, BL, Fito, Seguro, Packing, Logger y Otros.',48,ny-34,11);
+  const required=['FACT','BL','FITO','SEGURO','PACKING']; const miss=required.filter(t=>!files.some(f=>f.docType===t)); if(miss.length){ draw(page,'Pendientes: '+miss.join(', '),48,ny-52,11,rgb(0.96,0.62,0.04)); }
+  const ts=new Date(); let s; try{s=ts.toLocaleString('es-CL',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});}catch{ s=ts.toISOString(); }
+  draw(page,'Generado: '+s,48,ny-70,10);
 
   for(const f of files){
     const bytes=new Uint8Array(f.blob); const type=(f.type||'').toLowerCase();
     try{
-      if(type.startsWith('application/pdf')){
-        const src=await PDFDocument.load(bytes); const pages=await pdfDoc.copyPages(src, src.getPageIndices()); pages.forEach(p=>pdfDoc.addPage(p));
-      } else if(type.startsWith('image/')){
-        const pg=pdfDoc.addPage([A4_W, A4_H]); const img= type.includes('png') ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
-        const w=img.width,h=img.height,scale=Math.min((A4_W-60)/w,(A4_H-120)/h); const dw=w*scale, dh=h*scale; pg.drawImage(img,{x:(A4_W-dw)/2,y:(A4_H-dh)/2,width:dw,height:dh});
-        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,80),{x:40,y:40,size:10,font});
-      } else if(type.includes('csv')||type.startsWith('text/')){
-        const txt=new TextDecoder().decode(bytes).split('\n').slice(0,60).join('\n'); const pg=pdfDoc.addPage([A4_W,A4_H]);
-        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,90),{x:40,y:A4_H-60,size:12,font});
-        let y=A4_H-90; const size=10; for(const line of txt.split('\n')){ pg.drawText(line.slice(0,110),{x:40,y,size,font}); y-=size+4; if(y<60) break; }
-      } else {
-        const pg=pdfDoc.addPage([A4_W,A4_H]); pg.drawText(`Adjunto no visualizable: ${f.name||''}`.slice(0,90),{x:40,y:A4_H-60,size:12,font});
-      }
-    }catch(err){ console.warn('Error adjunto', f.name, err); }
+      if(type.startsWith('application/pdf')){ const src=await PDFDocument.load(bytes); const pages=await pdfDoc.copyPages(src, src.getPageIndices()); pages.forEach(p=>pdfDoc.addPage(p)); }
+      else if(type.startsWith('image/')){ const pg=pdfDoc.addPage([A4_W,A4_H]); const img= type.includes('png')?await pdfDoc.embedPng(bytes):await pdfDoc.embedJpg(bytes); const sc=Math.min((A4_W-60)/img.width,(A4_H-120)/img.height); const dw=img.width*sc, dh=img.height*sc; pg.drawImage(img,{x:(A4_W-dw)/2,y:(A4_H-dh)/2,width:dw,height:dh}); pg.drawText(`${f.docType} – ${f.name}`.slice(0,80),{x:40,y:40,size:10,font}); }
+      else if(type.includes('csv')||type.startsWith('text/')){ const txt=new TextDecoder().decode(bytes).split('\n').slice(0,60).join('\n'); const pg=pdfDoc.addPage([A4_W,A4_H]); pg.drawText(`${f.docType} – ${f.name}`.slice(0,90),{x:40,y:A4_H-60,size:12,font}); let y=A4_H-90; for(const ln of txt.split('\n')){ pg.drawText(ln.slice(0,110),{x:40,y,size:10,font}); y-=14; if(y<60) break; } }
+      else { const pg=pdfDoc.addPage([A4_W,A4_H]); pg.drawText(`Adjunto no visualizable: ${f.name}`.slice(0,90),{x:40,y:A4_H-60,size:12,font}); }
+    }catch{}
   }
-
-  const pdfBytes=await pdfDoc.save();
-  const blob=new Blob([pdfBytes],{type:'application/pdf'});
-  const filename=`${rec.week||'SEM'}_${rec.cntr||'CNTR'}_DOCUMENTACION.pdf`;
-  return {blob, filename};
+  const pdf=await pdfDoc.save(); return { blob:new Blob([pdf],{type:'application/pdf'}), filename:`${rec.week||'SEM'}_${rec.cntr||'CNTR'}_DOCUMENTACION.pdf` };
 }
-
-$('#pdfBtn').onclick = async ()=>{
-  const id=await ensureSavedFromForm(); if(!id) return;
-  const built=await buildUnifiedPDF(id); if(!built) return;
-  const a=document.createElement('a'); a.href=URL.createObjectURL(built.blob); a.download=built.filename; a.click(); URL.revokeObjectURL(a.href);
-};
-$('#shareBtn').onclick = async ()=>{
-  const id=await ensureSavedFromForm(); if(!id) return;
-  const built=await buildUnifiedPDF(id); if(!built) return;
-  try{
-    const file=new File([built.blob], built.filename, {type:'application/pdf'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({files:[file], title: built.filename, text: `Documentación de contenedor ${id.split(':')[1]}`});
-    }else{
-      const a=document.createElement('a'); a.href=URL.createObjectURL(built.blob); a.download=built.filename; a.click(); URL.revokeObjectURL(a.href);
-      toast('Compartir no soportado – se descargó el PDF');
-    }
-  }catch(err){ console.error(err); toast('No se pudo compartir'); }
-};
+$('#pdfBtn').onclick=async()=>{ const id=await ensureSavedFromForm(); if(!id) return; const out=await buildUnifiedPDF(id); if(!out) return; const a=document.createElement('a'); a.href=URL.createObjectURL(out.blob); a.download=out.filename; a.click(); URL.revokeObjectURL(a.href); };
+$('#shareBtn').onclick=async()=>{ const id=await ensureSavedFromForm(); if(!id) return; const out=await buildUnifiedPDF(id); if(!out) return; try{ const file=new File([out.blob],out.filename,{type:'application/pdf'}); if(navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file],title:out.filename}); else { const a=document.createElement('a'); a.href=URL.createObjectURL(out.blob); a.download=out.filename; a.click(); URL.revokeObjectURL(a.href);} }catch{ toast('No se pudo compartir'); } };
 </script>
 
-<!-- Service Worker (sube versión para romper caché) -->
+<!-- SW sin caché estático; cambia ?v=... para forzar actualización -->
 <script>
 if ('serviceWorker' in navigator) {
-  const SW_URL = 'sw.js?v=no-cache-2025-11-08-1'; // ← mismo tag que en sw.js
-
-  navigator.serviceWorker.register(SW_URL).then((reg) => {
-    // si ya hay uno nuevo esperando, actívalo
-    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-
-    // cuando detecte update, fuerza skipWaiting del nuevo
-    reg.addEventListener('updatefound', () => {
+  const SW_URL = 'sw.js?v=no-cache-2025-11-08-2';
+  navigator.serviceWorker.register(SW_URL).then((reg)=>{
+    if (reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+    reg.addEventListener('updatefound', ()=>{
       const nw = reg.installing;
-      nw?.addEventListener('statechange', () => {
-        if (nw.state === 'installed') reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
+      nw?.addEventListener('statechange', ()=>{
+        if (nw.state === 'installed') reg.waiting?.postMessage({type:'SKIP_WAITING'});
       });
     });
-  }).catch(console.error);
-
-  // recarga una vez cuando cambie el controlador
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return; refreshing = true; location.reload();
+  });
+  let refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if (refreshing) return; refreshing=true; location.reload();
   });
 }
 </script>

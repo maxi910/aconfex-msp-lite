@@ -1,5 +1,5 @@
 // sw.js  — ACONFEX MSP · cache busting + actualización inmediata
-const SW_VERSION = 'v5';
+const SW_VERSION = 'v6';
 const CACHE = `aconfex-${SW_VERSION}`;
 
 // Calcula el path base correctamente en GitHub Pages (p.ej. /aconfex-msp-lite/)

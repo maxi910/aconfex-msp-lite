@@ -120,9 +120,7 @@
           <input type="file" accept="application/pdf,image/*" data-file="SEGURO" />
           <div class="help" id="info_SEGURO"></div>
         </div>
-        <div class="docbox" data-doctype="VGM">
-          <div class="dochead"><span class="docname">VGM <span class="muted" title="Verified Gross Mass">(masa bruta verificada)</span></span><span class="chip miss" id="state_VGM">faltante</span></div>
-          <input type="file" accept="application/pdf,image/*" data-file="VGM" />
+        <input type="file" accept="application/pdf,image/*" data-file="VGM" />
           <div class="help">El <b>VGM</b> (Verified Gross Mass) es la masa bruta verificada exigida por SOLAS para embarcar: peso carga + embalaje + contenedor.</div>
         </div>
         <div class="docbox" data-doctype="LOGGER">
@@ -244,9 +242,9 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='bl
 function weekOptions(sel){ sel.innerHTML=''; for(let i=1;i<=35;i++){ const op=document.createElement('option'); op.value=String(i).padStart(2,'0'); op.textContent='Semana '+String(i).padStart(2,'0'); sel.appendChild(op);} }
 
 function lightFor(rec){
-  const hasBL=!!rec.files.BL; const hasFITO=!!rec.files.FITO; const hasSEGURO=!!rec.files.SEGURO; const hasVGM=!!rec.files.VGM;
-  const critical = [hasBL,hasFITO,hasSEGURO,hasVGM].filter(Boolean).length;
-  if(critical>=4) return 'green';
+  const hasBL=!!rec.files.BL; const hasFITO=!!rec.files.FITO; const hasSEGURO=!!rec.files.SEGURO;
+  const critical = [hasBL,hasFITO,hasSEGURO].filter(Boolean).length;
+  if(critical>=3) return 'green';
   if(critical>=2) return 'yellow';
   return 'red';
 }
@@ -282,14 +280,14 @@ async function refreshList(){
 
 async function inflateRecord(base){
   const id=base.id; const files={};
-  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','VGM','LOGGER']){
+  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','LOGGER']){
     const f = await getFile(id,k); files[k]=!!f; }
   const otros = await getOtros(id); files.OTROS = otros.length;
   return {...base, files};
 }
 
 function clearForm(){ currentId=null; $('#f_cntr').value=''; $('#f_cliente').value=''; $('#f_destino').value=''; $('#f_etd').value=''; $('#f_notas').value='';
-  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','VGM','LOGGER']) updateDocState(k,false,'');
+  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','LOGGER']) updateDocState(k,false,'');
   updateOtrosState(0,[]);
 }
 
@@ -297,7 +295,7 @@ function loadIntoForm(rec){
   currentId = rec.id; $('#f_week').value = rec.week; $('#f_cntr').value = rec.cntr; $('#f_cliente').value=rec.cliente||''; $('#f_destino').value=rec.destino||''; $('#f_etd').value=rec.etd||''; $('#f_notas').value=rec.notas||'';
   // refresh file chips
   inflateRecord(rec).then(r=>{
-    for(const k of ['BL','FACT','PACKING','FITO','SEGURO','VGM','LOGGER']) updateDocState(k, r.files[k], r.files[k]?'cargado':'' );
+    for(const k of ['BL','FACT','PACKING','FITO','SEGURO','LOGGER']) updateDocState(k, r.files[k], r.files[k]?'cargado':'' );
     updateOtrosState(r.files.OTROS, []);
   });
 }
@@ -435,7 +433,7 @@ async function unifiedPDFFor(id){
   draw(`Destino: ${rec.destino||''}`, 52, A4_H-180);
   draw(`ETD: ${rec.etd||''}`, 52, A4_H-200);
   draw(`Notas: ${rec.notas||''}`.slice(0,120), 52, A4_H-220);
-  draw('Incluye: BL, Packing, Fito, Seguro, VGM, Logger y Otros adjuntos.', 52, A4_H-260, 11);
+  draw('Incluye: BL, Packing, Fito, Seguro, Logger y Otros adjuntos.', 52, A4_H-260, 11);
 
   for(const f of files){
     const bytes = new Uint8Array(f.blob);
@@ -504,7 +502,7 @@ document.getElementById('pdfBtn').onclick = async ()=>{
 async function buildUnifiedPDF(id){
   const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
   const files = await getAllFilesFor(id);
-  const order = {BL:1, FACT:2, PACKING:3, FITO:4, SEGURO:5, VGM:6, LOGGER:7, OTROS:8};
+  const order = {BL:1, FACT:2, PACKING:3, FITO:4, SEGURO:5, LOGGER:6, OTROS:7};
   files.sort((a,b)=> (order[a.docType]||9) - (order[b.docType]||9) || (a.name||'').localeCompare(b.name||''));
 
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
@@ -523,7 +521,7 @@ async function buildUnifiedPDF(id){
   draw(`Destino: ${rec.destino||''}`, 52, A4_H-180);
   draw(`ETD: ${rec.etd||''}`, 52, A4_H-200);
   draw(`Notas: ${rec.notas||''}`.slice(0,120), 52, A4_H-220);
-  draw('Incluye: BL, Factura, Packing, Fito, Seguro, VGM, Logger y Otros.', 52, A4_H-260, 11);
+  draw('Incluye: BL, Factura, Packing, Fito, Seguro, Logger y Otros.', 52, A4_H-260, 11);
 
   // Adjuntos
   for(const f of files){
@@ -597,4 +595,3 @@ async function buildUnifiedPDF(id){
 </script>
 </body>
 </html>
-

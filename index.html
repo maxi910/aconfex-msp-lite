@@ -622,5 +622,18 @@ async function buildUnifiedPDF(id){
   };
 })();
 </script>
+<script>
+// Registro de Service Worker para romper caché automáticamente
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js?v=2025-11-08-01').catch(console.error);
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'SW_ACTIVATED') {
+      const t = document.getElementById('toast');
+      if (t) { t.textContent = 'App actualizada. Recargando…'; t.style.display='block'; }
+      setTimeout(()=> location.reload(), 800);
+    }
+  });
+}
+</script>
 </body>
 </html>

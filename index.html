@@ -724,12 +724,30 @@ $('#shareBtn').onclick = async ()=>{
 
 <!-- Service Worker (sube versión para romper caché) -->
 <script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=18').catch(console.error);
-  navigator.serviceWorker.addEventListener('message', (e)=>{
-    if(e.data && e.data.type==='SW_ACTIVATED'){
-      const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }
-      setTimeout(()=>location.reload(), 800);
+if ('serviceWorker' in navigator) {
+  const SW_URL = 'sw.js?v=24-11-08-a';  // ← bumpéalo cuando publiques
+  navigator.serviceWorker.register(SW_URL).then((reg) => {
+    // Cuando hay SW nuevo, fuerza activación y recarga controlada
+    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      nw?.addEventListener('statechange', () => {
+        if (nw.state === 'installed') reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
+      });
+    });
+  }).catch(console.error);
+
+  // Cuando cambia el controlador, recarga una sola vez
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return; refreshing = true; location.reload();
+  });
+
+  // Mensaje opcional desde el SW (toast, etc.)
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'SW_ACTIVATED') {
+      // Puedes mostrar un aviso si quieres
+      // console.log('SW actualizado:', e.data.version);
     }
   });
 }

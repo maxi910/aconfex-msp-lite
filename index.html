@@ -192,7 +192,6 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" multiple data-file="OTROS" />
         <div class="help" id="info_OTROS"></div>
-        <!-- OTROS: múltiples; sin botón Ver individual para simplificar -->
       </div>
     </div>
 
@@ -426,25 +425,35 @@ document.querySelectorAll('button[data-del]').forEach(btn=>{
   btn.addEventListener('click', ()=> deleteSingleFile(btn.getAttribute('data-del')));
 });
 
-/* Ver archivo (SINGLE_DOCS): abre PDF/imagen en nueva pestaña o descarga otros tipos */
-async function viewSingleFile(kind){
+/* Ver archivo (SINGLE_DOCS): abre en nueva pestaña de forma compatible con bloqueadores */
+async function viewSingleFile(kind, ev){
   if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
+  let preWin = null;
+  try { preWin = window.open('', '_blank'); } catch {}
   const f = await getFile(currentId, kind);
-  if(!f){ toast(`No hay archivo de ${kind}`); return; }
+  if(!f){
+    if(preWin) preWin.close();
+    toast(`No hay archivo de ${kind}`);
+    return;
+  }
   try{
     const blob = new Blob([f.blob], {type: f.type || 'application/octet-stream'});
-    const url = URL.createObjectURL(blob);
+    const url  = URL.createObjectURL(blob);
     const type = (f.type||'').toLowerCase();
-    if(type.startsWith('application/pdf') || type.startsWith('image/')){
-      window.open(url, '_blank'); // el navegador lo muestra
-    }else{
-      const a=document.createElement('a'); a.href=url; a.download=f.name||(`${kind}.bin`); a.click();
+    if(preWin){ preWin.location.href = url; try { preWin.document.write('<title>Abriendo…</title>'); } catch {} }
+    else{
+      const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=f.name || (`${kind}.pdf`);
+      document.body.appendChild(a); a.click(); a.remove();
     }
     setTimeout(()=>URL.revokeObjectURL(url), 5*60*1000);
-  }catch(err){ console.error(err); toast('No se pudo abrir'); }
+  }catch(err){
+    console.error(err);
+    if(preWin) preWin.close();
+    toast('No se pudo abrir el archivo');
+  }
 }
 document.querySelectorAll('button[data-view]').forEach(btn=>{
-  btn.addEventListener('click', ()=> viewSingleFile(btn.getAttribute('data-view')));
+  btn.addEventListener('click', (ev)=> viewSingleFile(btn.getAttribute('data-view'), ev));
 });
 
 /*************** Backup / Restore ***************/
@@ -466,7 +475,7 @@ $('#importInput').onchange = async (e)=>{
       memFiles=new Map(data.files.map(f=>{ const ab=base64ToArrayBuffer(f.dataBase64); const k=f.fileId; return [k,{...f,blob:ab}]; }));
     }else{
       for(const r of data.records){ await new Promise((res,rej)=>{ const req=tx('records','readwrite').put(r); req.onsuccess=res; req.onerror=()=>rej(req.error); }); }
-      for(const f of data.files){ const put={...f}; put.blob=base64ToArrayBuffer(f.dataBase64); delete put.dataBase64; await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); req.onsuccess=res; req.onerror=()=>rej(req.error); }); }
+      for(const f of data.files){ const put={...f}; put.blob=base64ToArrayBuffer(f.dataBase64); delete put.dataBase64; await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); req.onsuccess=res; req.onerror=()=>rej(r.error); }); }
     }
     toast('Respaldo restaurado'); refreshList();
   }catch(err){ console.error(err); toast('Error al importar'); }
@@ -490,12 +499,16 @@ async function ensureSavedFromForm(){
   await saveRecord(rec); currentId=rec.id; return rec.id;
 }
 
-/* PDF (ya con DOCUMENTACIÓN y semáforo reubicado) */
+/* PDF (DOCUMENTACIÓN con orden: FACT, BL, FITO, SEGURO, PACKING, LOGGER, OTROS) */
 async function buildUnifiedPDF(id){
   const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
   const files = await getAllFilesFor(id);
-  const order = {BL:1, FACT:2, PACKING:3, FITO:4, SEGURO:5, LOGGER:6, OTROS:7};
-  files.sort((a,b)=> (order[a.docType]||9) - (order[b.docType]||9) || (a.name||'').localeCompare(b.name||''));
+
+  const order = { FACT:1, BL:2, FITO:3, SEGURO:4, PACKING:5, LOGGER:6, OTROS:7 };
+  files.sort((a,b)=>
+    (order[a.docType]||99)-(order[b.docType]||99) ||
+    (a.name||'').localeCompare(b.name||'')
+  );
 
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const pdfDoc = await PDFDocument.create();
@@ -512,9 +525,13 @@ async function buildUnifiedPDF(id){
   const page = pdfDoc.addPage([A4_W, A4_H]);
   drawRect(page, 0,0, A4_W, A4_H, rgb(0.06,0.08,0.13));
 
-  const hasBL=files.some(f=>f.docType==='BL'), hasFITO=files.some(f=>f.docType==='FITO'), hasSEGURO=files.some(f=>f.docType==='SEGURO');
+  const hasBL=files.some(f=>f.docType==='BL');
+  const hasFITO=files.some(f=>f.docType==='FITO');
+  const hasSEGURO=files.some(f=>f.docType==='SEGURO');
   const okCount=[hasBL,hasFITO,hasSEGURO].filter(Boolean).length;
-  let status='ROJO', sealColor=rgb(0.94,0.27,0.27); if(okCount===3){status='VERDE';sealColor=rgb(0.13,0.77,0.37);} else if(okCount===2){status='AMARILLO';sealColor=rgb(0.96,0.62,0.04);}
+  let status='ROJO', sealColor=rgb(0.94,0.27,0.27);
+  if(okCount===3){status='VERDE';sealColor=rgb(0.13,0.77,0.37);}
+  else if(okCount===2){status='AMARILLO';sealColor=rgb(0.96,0.62,0.04);}
 
   const M=48;
   drawText(page, 'ACONFEX · DOCUMENTACIÓN', M, A4_H-72, 28);
@@ -550,8 +567,9 @@ async function buildUnifiedPDF(id){
 
   drawLine(page,M,notasY-16,A4_W-M,notasY-16,border,1);
 
-  const includeY=notasY-34; drawText(page,'Incluye: BL, Factura, Packing, Fito, Seguro, Logger y Otros.', M, includeY, 11);
-  const missing=['BL','FACT','PACKING','FITO','SEGURO','LOGGER'].filter(t=>!files.some(f=>f.docType===t));
+  const includeY=notasY-34; drawText(page,'Incluye: Factura, BL, Fito, Seguro, Packing, Logger y Otros.', M, includeY, 11);
+  const required = ['FACT','BL','FITO','SEGURO','PACKING'];
+  const missing = required.filter(t=>!files.some(f=>f.docType===t));
   if(missing.length){ drawText(page,'Pendientes: '+missing.join(', '), M, includeY-18, 11, rgb(0.96,0.62,0.04)); }
 
   const ts=new Date(); let timeStr; try{ timeStr=ts.toLocaleString('es-CL',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}); }catch{ timeStr=ts.toISOString(); }
@@ -602,10 +620,10 @@ $('#shareBtn').onclick = async ()=>{
 };
 </script>
 
-<!-- Service Worker (sube versión) -->
+<!-- Service Worker (súbelo también y cambia su versión para romper caché) -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=v9').catch(console.error);
+  navigator.serviceWorker.register('sw.js?v=v12').catch(console.error);
   navigator.serviceWorker.addEventListener('message', (e)=>{
     if(e.data && e.data.type==='SW_ACTIVATED'){
       const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }

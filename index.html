@@ -114,7 +114,10 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" data-file="BL" />
         <div class="help" id="info_BL"></div>
-        <div class="actions"><button class="btn-mini btn-danger" data-del="BL" disabled>Eliminar BL</button></div>
+        <div class="actions">
+          <button class="btn-mini" data-view="BL" disabled>Ver BL</button>
+          <button class="btn-mini btn-danger" data-del="BL" disabled>Eliminar BL</button>
+        </div>
       </div>
 
       <div class="docbox" data-doctype="FACT">
@@ -124,7 +127,10 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" data-file="FACT" />
         <div class="help" id="info_FACT"></div>
-        <div class="actions"><button class="btn-mini btn-danger" data-del="FACT" disabled>Eliminar Factura</button></div>
+        <div class="actions">
+          <button class="btn-mini" data-view="FACT" disabled>Ver Factura</button>
+          <button class="btn-mini btn-danger" data-del="FACT" disabled>Eliminar Factura</button>
+        </div>
       </div>
 
       <div class="docbox" data-doctype="PACKING">
@@ -134,7 +140,10 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" data-file="PACKING" />
         <div class="help" id="info_PACKING"></div>
-        <div class="actions"><button class="btn-mini btn-danger" data-del="PACKING" disabled>Eliminar Packing</button></div>
+        <div class="actions">
+          <button class="btn-mini" data-view="PACKING" disabled>Ver Packing</button>
+          <button class="btn-mini btn-danger" data-del="PACKING" disabled>Eliminar Packing</button>
+        </div>
       </div>
 
       <div class="docbox" data-doctype="FITO">
@@ -144,7 +153,10 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" data-file="FITO" />
         <div class="help" id="info_FITO"></div>
-        <div class="actions"><button class="btn-mini btn-danger" data-del="FITO" disabled>Eliminar Fito</button></div>
+        <div class="actions">
+          <button class="btn-mini" data-view="FITO" disabled>Ver Fito</button>
+          <button class="btn-mini btn-danger" data-del="FITO" disabled>Eliminar Fito</button>
+        </div>
       </div>
 
       <div class="docbox" data-doctype="SEGURO">
@@ -154,7 +166,10 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" data-file="SEGURO" />
         <div class="help" id="info_SEGURO"></div>
-        <div class="actions"><button class="btn-mini btn-danger" data-del="SEGURO" disabled>Eliminar Seguro</button></div>
+        <div class="actions">
+          <button class="btn-mini" data-view="SEGURO" disabled>Ver Seguro</button>
+          <button class="btn-mini btn-danger" data-del="SEGURO" disabled>Eliminar Seguro</button>
+        </div>
       </div>
 
       <div class="docbox" data-doctype="LOGGER">
@@ -164,7 +179,10 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*,.csv" data-file="LOGGER" />
         <div class="help" id="info_LOGGER"></div>
-        <div class="actions"><button class="btn-mini btn-danger" data-del="LOGGER" disabled>Eliminar Logger</button></div>
+        <div class="actions">
+          <button class="btn-mini" data-view="LOGGER" disabled>Ver Logger</button>
+          <button class="btn-mini btn-danger" data-del="LOGGER" disabled>Eliminar Logger</button>
+        </div>
       </div>
 
       <div class="docbox" data-doctype="OTROS">
@@ -174,7 +192,7 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" multiple data-file="OTROS" />
         <div class="help" id="info_OTROS"></div>
-        <!-- OTROS se mantienen múltiples; no se agrega botón de borrar individual en esta versión -->
+        <!-- OTROS: múltiples; sin botón Ver individual para simplificar -->
       </div>
     </div>
 
@@ -275,12 +293,16 @@ function setDelEnabled(kind, enabled){
   const btn=document.querySelector(`button[data-del="${kind}"]`);
   if(btn){ btn.disabled = !enabled; }
 }
+function setViewEnabled(kind, enabled){
+  const btn=document.querySelector(`button[data-view="${kind}"]`);
+  if(btn){ btn.disabled = !enabled; }
+}
 function updateDocState(k, ok, info){
   const chip = document.getElementById('state_'+k); if(!chip) return;
   chip.className = 'chip ' + (ok? 'ok':'miss');
   chip.innerHTML = ok ? 'cargado' : 'faltante';
   const inf = document.getElementById('info_'+k); if(inf) inf.textContent = info||'';
-  if(SINGLE_DOCS.includes(k)) setDelEnabled(k, !!ok);
+  if(SINGLE_DOCS.includes(k)){ setDelEnabled(k, !!ok); setViewEnabled(k, !!ok); }
 }
 function updateOtrosState(n, names){
   const chip = document.getElementById('state_OTROS');
@@ -404,12 +426,33 @@ document.querySelectorAll('button[data-del]').forEach(btn=>{
   btn.addEventListener('click', ()=> deleteSingleFile(btn.getAttribute('data-del')));
 });
 
+/* Ver archivo (SINGLE_DOCS): abre PDF/imagen en nueva pestaña o descarga otros tipos */
+async function viewSingleFile(kind){
+  if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
+  const f = await getFile(currentId, kind);
+  if(!f){ toast(`No hay archivo de ${kind}`); return; }
+  try{
+    const blob = new Blob([f.blob], {type: f.type || 'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    const type = (f.type||'').toLowerCase();
+    if(type.startsWith('application/pdf') || type.startsWith('image/')){
+      window.open(url, '_blank'); // el navegador lo muestra
+    }else{
+      const a=document.createElement('a'); a.href=url; a.download=f.name||(`${kind}.bin`); a.click();
+    }
+    setTimeout(()=>URL.revokeObjectURL(url), 5*60*1000);
+  }catch(err){ console.error(err); toast('No se pudo abrir'); }
+}
+document.querySelectorAll('button[data-view]').forEach(btn=>{
+  btn.addEventListener('click', ()=> viewSingleFile(btn.getAttribute('data-view')));
+});
+
 /*************** Backup / Restore ***************/
 $('#exportBtn').onclick = async ()=>{
   const records = useMemory ? [...memRecords.values()] : await new Promise((res,rej)=>{ const out=[]; const req=tx('records').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){out.push(c.value); c.continue();} else res(out)}; req.onerror=()=>rej(req.error); });
   const files = useMemory ? [...memFiles.values()].map(v=>({...v, dataBase64: arrayBufferToBase64(v.blob)})) :
     await new Promise((res,rej)=>{ const out=[]; const req=tx('files').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){ const v=c.value; const b64=arrayBufferToBase64(v.blob); out.push({...v,dataBase64:b64}); c.continue(); } else res(out) }; req.onerror=()=>rej(req.error); });
-  const payload={version:'1.2', exportedAt:new Date().toISOString(), records, files};
+  const payload={version:'1.3', exportedAt:new Date().toISOString(), records, files};
   const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='aconfex_backup.json'; a.click(); URL.revokeObjectURL(a.href);
   toast('Respaldo exportado');
@@ -447,7 +490,7 @@ async function ensureSavedFromForm(){
   await saveRecord(rec); currentId=rec.id; return rec.id;
 }
 
-/* PDF rediseñado (ya actualizado a DOCUMENTACIÓN y semáforo reubicado) */
+/* PDF (ya con DOCUMENTACIÓN y semáforo reubicado) */
 async function buildUnifiedPDF(id){
   const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
   const files = await getAllFilesFor(id);
@@ -559,10 +602,10 @@ $('#shareBtn').onclick = async ()=>{
 };
 </script>
 
-<!-- Service Worker (actualiza versión) -->
+<!-- Service Worker (sube versión) -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=v8').catch(console.error);
+  navigator.serviceWorker.register('sw.js?v=v9').catch(console.error);
   navigator.serviceWorker.addEventListener('message', (e)=>{
     if(e.data && e.data.type==='SW_ACTIVATED'){
       const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }

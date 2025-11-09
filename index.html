@@ -241,7 +241,7 @@ async function getAllFilesFor(id){
  *****************/
 const $ = (q)=>document.querySelector(q);
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',1800); }
-function weekOptions(sel){ sel.innerHTML=''; for(let i=1;i<=35;i++){ const op=document.createElement('option'); op.value=String(i).padStart(2,'0'); op.textContent='Semana '+String(i).padStart(2,'0'); sel.appendChild(op);} }
+function weekOptions(sel){ sel.innerHTML=''; for(let i=1;i<=52;i++){ const op=document.createElement('option'); op.value=String(i).padStart(2,'0'); op.textContent='Semana '+String(i).padStart(2,'0'); sel.appendChild(op);} }
 
 function lightFor(rec){
   const hasBL=!!rec.files.BL; const hasFITO=!!rec.files.FITO; const hasSEGURO=!!rec.files.SEGURO;

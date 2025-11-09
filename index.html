@@ -725,7 +725,7 @@ $('#shareBtn').onclick = async ()=>{
 <!-- Service Worker (sube versión para romper caché) -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=v18').catch(console.error);
+  navigator.serviceWorker.register('sw.js?v=18').catch(console.error);
   navigator.serviceWorker.addEventListener('message', (e)=>{
     if(e.data && e.data.type==='SW_ACTIVATED'){
       const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }

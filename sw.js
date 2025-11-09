@@ -1,5 +1,5 @@
 // sw.js — ACONFEX MSP · cache busting + actualización inmediata
-const SW_VERSION = 'v8';
+const SW_VERSION = 'v9';
 const CACHE = `aconfex-${SW_VERSION}`;
 
 // Soporta GitHub Pages con subruta

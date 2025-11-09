@@ -6,20 +6,15 @@
   <title>ACONFEX · MSP ULTRA‑LITE</title>
   <meta name="theme-color" content="#0f172a" />
   <style>
-    :root{
-      --bg:#0b1220; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --accent:#38bdf8;
-      --border:#1f2937; --chip:#0b3b54;
-    }
+    :root{ --bg:#0b1220; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --accent:#38bdf8; --border:#1f2937; --chip:#0b3b54; }
     *{box-sizing:border-box}
     body{margin:0;background:linear-gradient(180deg,#0b1220,#0a0f1a);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
     header{position:sticky;top:0;z-index:10;background:rgba(11,18,32,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
     .wrap{max-width:1000px;margin:0 auto;padding:14px}
     h1{margin:0;font-size:18px;letter-spacing:.3px}
     .subtitle{color:var(--muted);font-size:12px}
-
     .grid{display:grid;gap:14px}
     @media(min-width:900px){.grid{grid-template-columns: 370px 1fr}}
-
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
     label{display:block;font-size:12px;color:var(--muted);margin:8px 0 6px}
     input,select,textarea,button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0a1324;color:var(--text);font-size:14px}
@@ -29,7 +24,6 @@
     button:hover{background:#0c3055}
     .row{display:flex;gap:10px}
     .row>*{flex:1}
-
     .docs{display:grid;grid-template-columns:1fr;gap:10px}
     @media(min-width:520px){.docs{grid-template-columns:1fr 1fr}}
     .docbox{border:1px dashed #27445f;border-radius:12px;padding:10px;background:#0b162a}
@@ -38,9 +32,7 @@
     .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);padding:4px 8px;border-radius:999px;font-size:12px;color:#bfeaff}
     .chip.ok{background:rgba(34,197,94,.15);color:#bbf7d0}
     .chip.miss{background:rgba(239,68,68,.15);color:#fecaca}
-
     .list-empty{border:1px dashed #234; border-radius:12px;padding:12px;color:#9fb3c8;background:#0b162a}
-
     .record{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:12px;background:#0a1324}
     .light{width:12px;height:12px;border-radius:999px}
     .light.green{background:var(--ok)}
@@ -49,14 +41,11 @@
     .rec-head{display:flex;gap:8px;flex-wrap:wrap}
     .rec-title{font-weight:700}
     .muted{color:var(--muted)}
-    .actions{margin-top:8px;display:flex;gap:8px}
+    .actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
     .btn-ghost{background:#091125;border-color:#1a2c48}
-
     .help{font-size:12px;color:#a8c1d9}
     .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; background:#081122;border:1px solid #263850;border-radius:6px;padding:1px 6px}
-
     .footer{color:#92a7be;font-size:12px;margin-top:4px}
-
     .toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#0b2a3f;color:#d8f0ff;border:1px solid #1d4763;padding:10px 14px;border-radius:10px;display:none}
   </style>
 </head>
@@ -150,10 +139,17 @@
 
       <div class="actions">
         <button id="saveBtn">Guardar</button>
+        <button id="pdfBtn">PDF unificado</button>
         <button id="newClearBtn" class="btn-ghost">Limpiar</button>
         <button id="deleteBtn" class="btn-ghost">Eliminar</button>
       </div>
       <div class="footer">Los documentos se guardan <b>localmente</b> en tu dispositivo (IndexedDB). No se suben a ningún servidor.</div>
+
+      <div class="actions" style="margin-top:12px">
+        <button id="exportBtn" class="btn-ghost">Respaldar (Exportar JSON)</button>
+        <label for="importInput" class="btn-ghost" style="display:inline-block;text-align:center;cursor:pointer">Restaurar (Importar JSON)</label>
+        <input id="importInput" type="file" accept="application/json" style="display:none" />
+      </div>
     </section>
 
     <!-- Lista por semana -->
@@ -166,6 +162,8 @@
 
   <div class="toast" id="toast"></div>
 
+<!-- pdf-lib para generar PDF unificado -->
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script>
 /*****************
  * IndexedDB lite
@@ -242,7 +240,7 @@ async function getAllFilesFor(id){
  * UI helpers
  *****************/
 const $ = (q)=>document.querySelector(q);
-function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',1500); }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',1800); }
 function weekOptions(sel){ sel.innerHTML=''; for(let i=1;i<=35;i++){ const op=document.createElement('option'); op.value=String(i).padStart(2,'0'); op.textContent='Semana '+String(i).padStart(2,'0'); sel.appendChild(op);} }
 
 function lightFor(rec){
@@ -284,14 +282,14 @@ async function refreshList(){
 
 async function inflateRecord(base){
   const id=base.id; const files={};
-  for(const k of ['BL','PACKING','FITO','SEGURO','VGM','LOGGER']){
+  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','VGM','LOGGER']){
     const f = await getFile(id,k); files[k]=!!f; }
   const otros = await getOtros(id); files.OTROS = otros.length;
   return {...base, files};
 }
 
 function clearForm(){ currentId=null; $('#f_cntr').value=''; $('#f_cliente').value=''; $('#f_destino').value=''; $('#f_etd').value=''; $('#f_notas').value='';
-  for(const k of ['BL','PACKING','FITO','SEGURO','VGM','LOGGER']) updateDocState(k,false,'');
+  for(const k of ['BL','FACT','PACKING','FITO','SEGURO','VGM','LOGGER']) updateDocState(k,false,'');
   updateOtrosState(0,[]);
 }
 
@@ -299,7 +297,7 @@ function loadIntoForm(rec){
   currentId = rec.id; $('#f_week').value = rec.week; $('#f_cntr').value = rec.cntr; $('#f_cliente').value=rec.cliente||''; $('#f_destino').value=rec.destino||''; $('#f_etd').value=rec.etd||''; $('#f_notas').value=rec.notas||'';
   // refresh file chips
   inflateRecord(rec).then(r=>{
-    for(const k of ['BL','PACKING','FITO','SEGURO','VGM','LOGGER']) updateDocState(k, r.files[k], r.files[k]?'cargado':'' );
+    for(const k of ['BL','FACT','PACKING','FITO','SEGURO','VGM','LOGGER']) updateDocState(k, r.files[k], r.files[k]?'cargado':'' );
     updateOtrosState(r.files.OTROS, []);
   });
 }
@@ -315,11 +313,10 @@ function updateOtrosState(n, names){
 }
 
 /*****************
- * Events
+ * Eventos base
  *****************/
 window.addEventListener('load', async ()=>{
   await openDB();
-  // semanas
   weekOptions(document.getElementById('weekSelect'));
   weekOptions(document.getElementById('f_week'));
   currentWeek = new URL(location.href).searchParams.get('wk') || '01';
@@ -328,15 +325,12 @@ window.addEventListener('load', async ()=>{
   refreshList();
 });
 
-// cambiar semana
 document.getElementById('weekSelect').addEventListener('change', (e)=>{ currentWeek = e.target.value; refreshList(); });
 
-// nuevo
 document.getElementById('newBtn').onclick = ()=>{ clearForm(); document.getElementById('f_week').value=currentWeek; };
 
 document.getElementById('newClearBtn').onclick = ()=> clearForm();
 
-// guardar
 document.getElementById('saveBtn').onclick = async ()=>{
   const week = document.getElementById('f_week').value || currentWeek;
   const cntr = (document.getElementById('f_cntr').value||'').toUpperCase().trim();
@@ -353,17 +347,14 @@ document.getElementById('saveBtn').onclick = async ()=>{
   await saveRecord(rec); currentId = rec.id; toast('Guardado ✔'); refreshList();
 };
 
-// eliminar
 document.getElementById('deleteBtn').onclick = async ()=>{
   if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
   if(confirm('¿Eliminar este contenedor y sus archivos?')){ await deleteRecord(currentId); clearForm(); refreshList(); toast('Eliminado'); }
 };
 
-// inputs de archivos
 Array.from(document.querySelectorAll('input[type=file][data-file]')).forEach(inp=>{
   inp.addEventListener('change', async (e)=>{
     const files = Array.from(e.target.files||[]); if(!files.length) return;
-    // asegurar record
     const week = document.getElementById('f_week').value || currentWeek;
     const cntr = (document.getElementById('f_cntr').value||'').toUpperCase().trim();
     if(!cntr){ toast('Primero escribe el CNTR'); e.target.value=''; return; }
@@ -383,6 +374,227 @@ Array.from(document.querySelectorAll('input[type=file][data-file]')).forEach(inp
     toast('Archivo(s) guardados en el dispositivo'); refreshList(); e.target.value='';
   });
 });
+
+/*****************
+ * Exportar/Importar respaldo JSON
+ *****************/
+document.getElementById('exportBtn').onclick = async ()=>{
+  const records = await new Promise((res,rej)=>{ const out=[]; const req=tx('records').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){ out.push(c.value); c.continue(); }else res(out)}; req.onerror=()=>rej(req.error); });
+  const files   = await new Promise((res,rej)=>{ const out=[]; const req=tx('files').openCursor(); req.onsuccess=(e)=>{const c=e.target.result; if(c){ const v=c.value; const b64 = arrayBufferToBase64(v.blob); out.push({...v, dataBase64:b64}); c.continue(); } else res(out) }; req.onerror=()=>rej(req.error); });
+  const payload = {version:'1.0', exportedAt: new Date().toISOString(), records, files};
+  const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'aconfex_backup.json'; a.click(); URL.revokeObjectURL(a.href);
+  toast('Respaldo exportado');
+};
+
+document.getElementById('importInput').onchange = async (e)=>{
+  const file = e.target.files[0]; if(!file) return; const text = await file.text();
+  try{
+    const data = JSON.parse(text);
+    if(!data || !Array.isArray(data.records) || !Array.isArray(data.files)) throw new Error('Formato inválido');
+    for(const r of data.records){ await new Promise((res,rej)=>{ const req=tx('records','readwrite').put(r); req.onsuccess=res; req.onerror=()=>rej(req.error); }); }
+    for(const f of data.files){ const put={...f}; put.blob = base64ToArrayBuffer(f.dataBase64); delete put.dataBase64; await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); req.onsuccess=res; req.onerror=()=>rej(req.error); }); }
+    toast('Respaldo restaurado'); refreshList();
+  }catch(err){ console.error(err); toast('Error al importar'); }
+  e.target.value='';
+};
+
+function arrayBufferToBase64(buffer){
+  const bytes = new Uint8Array(buffer); let binary = '';
+  const chunk = 0x8000; 
+  for(let i=0;i<bytes.length;i+=chunk){ binary += String.fromCharCode.apply(null, bytes.subarray(i,i+chunk)); }
+  return btoa(binary);
+}
+function base64ToArrayBuffer(b64){
+  const binary = atob(b64); const len=binary.length; const bytes = new Uint8Array(len);
+  for(let i=0;i<len;i++) bytes[i]=binary.charCodeAt(i); return bytes.buffer;
+}
+
+/*****************
+ * PDF Unificado (usa pdf-lib)
+ *****************/
+const A4_W = 595.28, A4_H = 841.89; 
+
+async function unifiedPDFFor(id){
+  const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return; }
+  const files = await getAllFilesFor(id);
+  const order = {BL:1, PACKING:2, FITO:3, SEGURO:4, VGM:5, LOGGER:6, OTROS:7};
+  files.sort((a,b)=> (order[a.docType]||9) - (order[b.docType]||9) || (a.name||'').localeCompare(b.name||''));
+
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const page = pdfDoc.addPage([A4_W, A4_H]);
+  const draw = (txt, x, y, s=12)=> page.drawText(txt, {x, y, size:s, font, color: rgb(0.9,0.95,1)});
+  page.drawRectangle({x:0,y:0,width:A4_W,height:A4_H,color:rgb(0.06,0.08,0.13)});
+  draw('ACONFEX · Dossier de Contenedor', 52, A4_H-72, 20);
+  draw(`Semana: ${rec.week||''}`, 52, A4_H-120);
+  draw(`CNTR: ${rec.cntr||''}`, 52, A4_H-140);
+  draw(`Cliente: ${rec.cliente||''}`, 52, A4_H-160);
+  draw(`Destino: ${rec.destino||''}`, 52, A4_H-180);
+  draw(`ETD: ${rec.etd||''}`, 52, A4_H-200);
+  draw(`Notas: ${rec.notas||''}`.slice(0,120), 52, A4_H-220);
+  draw('Incluye: BL, Packing, Fito, Seguro, VGM, Logger y Otros adjuntos.', 52, A4_H-260, 11);
+
+  for(const f of files){
+    const bytes = new Uint8Array(f.blob);
+    const type = (f.type||'').toLowerCase();
+    try{
+      if(type.startsWith('application/pdf')){
+        const src = await PDFDocument.load(bytes);
+        const pages = await pdfDoc.copyPages(src, src.getPageIndices());
+        pages.forEach(p=>pdfDoc.addPage(p));
+      } else if(type.startsWith('image/')){
+        let img; const pg = pdfDoc.addPage([A4_W, A4_H]);
+        if(type.indexOf('png')!==-1){ img = await pdfDoc.embedPng(bytes);} else { img = await pdfDoc.embedJpg(bytes);} 
+        const w = img.width, h = img.height; const scale = Math.min((A4_W-60)/w, (A4_H-120)/h);
+        const dw = w*scale, dh = h*scale; pg.drawImage(img, {x:(A4_W-dw)/2, y:(A4_H-dh)/2, width:dw, height:dh});
+        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,80), {x:40, y:40, size:10, font});
+      } else if(type.indexOf('csv')!==-1 || type.indexOf('text/')===0){
+        const txt = new TextDecoder().decode(bytes).split('
+').slice(0,60).join('
+');
+        const pg = pdfDoc.addPage([A4_W, A4_H]);
+        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
+        drawMultiline(pg, txt, 40, A4_H-90, 10, font);
+      } else {
+        const pg = pdfDoc.addPage([A4_W, A4_H]);
+        pg.drawText(`Adjunto no visualizable: ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
+      }
+    } catch(err){ console.warn('Error adjunto', f.name, err); }
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], {type:'application/pdf'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${rec.cntr||'CNTR'}_dossier.pdf`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function drawMultiline(page, text, x, y, size, font){
+  const maxChars = 100; 
+  const norm = normalizeWS(text);
+  const words = norm.split(' ');
+  let yy = y; let line = '';
+  for(const w of words){
+    if((line + w).length > maxChars){ page.drawText(line.trim(), {x, y: yy, size, font}); yy -= size+4; line = w + ' '; if(yy<60) break; }
+    else { line += w + ' '; }
+  }
+  if(yy>=60 && line.trim()) page.drawText(line.trim(), {x, y: yy, size, font});
+}
+function normalizeWS(s){
+  let out = s.split('
+').join(' ').split('
+').join(' ').split('	').join(' ');
+  while(out.indexOf('  ')!==-1) out = out.replace('  ',' ');
+  return out.trim();
+}
+
+// Botón PDF unificado
+document.getElementById('pdfBtn').onclick = async ()=>{
+  const week = document.getElementById('f_week').value || currentWeek;
+  const cntr = (document.getElementById('f_cntr').value||'').toUpperCase().trim();
+  if(!cntr){ toast('CNTR requerido'); return; }
+  const id = currentId || `${week}:${cntr}`;
+  await unifiedPDFFor(id);
+};
+</script>
+<script>
+// === Extensión: añadir Factura y botón Compartir ===
+// Sobrescribimos el handler del botón PDF y agregamos "Compartir PDF"
+async function buildUnifiedPDF(id){
+  const rec = await getRecord(id); if(!rec){ toast('Guarda el contenedor primero'); return null; }
+  const files = await getAllFilesFor(id);
+  const order = {BL:1, FACT:2, PACKING:3, FITO:4, SEGURO:5, VGM:6, LOGGER:7, OTROS:8};
+  files.sort((a,b)=> (order[a.docType]||9) - (order[b.docType]||9) || (a.name||'').localeCompare(b.name||''));
+
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const A4_W = 595.28, A4_H = 841.89;
+
+  // Portada
+  const page = pdfDoc.addPage([A4_W, A4_H]);
+  const draw = (txt, x, y, s=12)=> page.drawText(txt, {x, y, size:s, font, color: rgb(0.9,0.95,1)});
+  page.drawRectangle({x:0,y:0,width:A4_W,height:A4_H,color:rgb(0.06,0.08,0.13)});
+  draw('ACONFEX · Dossier de Contenedor', 52, A4_H-72, 20);
+  draw(`Semana: ${rec.week||''}`, 52, A4_H-120);
+  draw(`CNTR: ${rec.cntr||''}`, 52, A4_H-140);
+  draw(`Cliente: ${rec.cliente||''}`, 52, A4_H-160);
+  draw(`Destino: ${rec.destino||''}`, 52, A4_H-180);
+  draw(`ETD: ${rec.etd||''}`, 52, A4_H-200);
+  draw(`Notas: ${rec.notas||''}`.slice(0,120), 52, A4_H-220);
+  draw('Incluye: BL, Factura, Packing, Fito, Seguro, VGM, Logger y Otros.', 52, A4_H-260, 11);
+
+  // Adjuntos
+  for(const f of files){
+    const bytes = new Uint8Array(f.blob);
+    const type = (f.type||'').toLowerCase();
+    try{
+      if(type.startsWith('application/pdf')){
+        const src = await PDFDocument.load(bytes);
+        const pages = await pdfDoc.copyPages(src, src.getPageIndices());
+        pages.forEach(p=>pdfDoc.addPage(p));
+      } else if(type.startsWith('image/')){
+        let img; const pg = pdfDoc.addPage([A4_W, A4_H]);
+        if(type.includes('png')){ img = await pdfDoc.embedPng(bytes);} else { img = await pdfDoc.embedJpg(bytes);} 
+        const w = img.width, h = img.height; const scale = Math.min((A4_W-60)/w, (A4_H-120)/h);
+        const dw = w*scale, dh = h*scale; pg.drawImage(img, {x:(A4_W-dw)/2, y:(A4_H-dh)/2, width:dw, height:dh});
+        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,80), {x:40, y:40, size:10, font});
+      } else if(type.includes('csv') || type.startsWith('text/')){
+        const txt = new TextDecoder().decode(bytes).split('
+').slice(0,60).join('
+');
+        const pg = pdfDoc.addPage([A4_W, A4_H]);
+        pg.drawText(`${f.docType||'OTROS'} – ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
+        let y=A4_H-90; const size=10; for(const line of txt.split('
+')){ pg.drawText(line.slice(0,110), {x:40, y, size, font}); y-=size+4; if(y<60) break; }
+      } else {
+        const pg = pdfDoc.addPage([A4_W, A4_H]);
+        pg.drawText(`Adjunto no visualizable: ${f.name||''}`.slice(0,90), {x:40, y:A4_H-60, size:12, font});
+      }
+    } catch(err){ console.warn('Error adjunto', f.name, err); }
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], {type:'application/pdf'});
+  const filename = `${rec.cntr||'CNTR'}_dossier.pdf`;
+  return {blob, filename};
+}
+
+// Descargar PDF
+(function(){
+  const btn = document.getElementById('pdfBtn'); if(!btn) return;
+  btn.onclick = async ()=>{
+    const week = document.getElementById('f_week').value || currentWeek;
+    const cntr = (document.getElementById('f_cntr').value||'').toUpperCase().trim();
+    if(!cntr){ toast('CNTR requerido'); return; }
+    const id = currentId || `${week}:${cntr}`;
+    const built = await buildUnifiedPDF(id); if(!built) return;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(built.blob); a.download = built.filename; a.click(); URL.revokeObjectURL(a.href);
+  };
+})();
+
+// Compartir PDF (Web Share API)
+(function(){
+  const btn = document.getElementById('shareBtn'); if(!btn) return;
+  btn.onclick = async ()=>{
+    const week = document.getElementById('f_week').value || currentWeek;
+    const cntr = (document.getElementById('f_cntr').value||'').toUpperCase().trim();
+    if(!cntr){ toast('CNTR requerido'); return; }
+    const id = currentId || `${week}:${cntr}`;
+    const built = await buildUnifiedPDF(id); if(!built) return;
+    try{
+      const file = new File([built.blob], built.filename, {type:'application/pdf'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title: built.filename, text: `Dossier de contenedor ${cntr}`});
+      } else {
+        const a = document.createElement('a'); a.href = URL.createObjectURL(built.blob); a.download = built.filename; a.click(); URL.revokeObjectURL(a.href);
+        toast('Compartir no soportado – se descargó el PDF');
+      }
+    } catch(err){ console.error(err); toast('No se pudo compartir'); }
+  };
+})();
 </script>
 </body>
 </html>
+

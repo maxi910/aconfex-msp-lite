@@ -1,8 +1,6 @@
 // sw.js — ACONFEX MSP · cache busting + actualización inmediata
-const SW_VERSION = 'v9';
+const SW_VERSION = 'v10';
 const CACHE = `aconfex-${SW_VERSION}`;
-
-// Soporta GitHub Pages con subruta
 const ROOT = new URL(self.registration.scope).pathname.replace(/\/$/, '/') || '/';
 const APP_SHELL = [ `${ROOT}`, `${ROOT}index.html` ];
 
@@ -25,7 +23,6 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
 
-  // Navegación: network-first, fallback caché
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req).then((r) => { caches.open(CACHE).then(c => c.put(`${ROOT}index.html`, r.clone())); return r; })
@@ -34,7 +31,6 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Mismo origen: stale-while-revalidate
   if (req.method === 'GET' && url.origin === location.origin) {
     e.respondWith(
       caches.match(req).then((cached) => {
@@ -45,7 +41,6 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // CDN (pdf-lib): network-first
   if (url.hostname.includes('cdn.jsdelivr.net')) {
     e.respondWith(
       fetch(req).then((r) => { caches.open(CACHE).then(c => c.put(req, r.clone())); return r; })

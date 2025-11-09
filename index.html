@@ -1,17 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<link rel="apple-touch-icon" href="icon-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>ACONFEX · MSP DOCUMENTACION</title>
+<title>ACONFEX · DOCUMENTACION</title>
 <meta name="theme-color" content="#0f172a" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <style>
 :root{
   --bg:#0b1220; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb;
@@ -60,6 +56,12 @@ button:hover{background:#0c3055}
 .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;background:#081122;border:1px solid #263850;border-radius:6px;padding:1px 6px}
 .footer{color:#92a7be;font-size:12px;margin-top:4px}
 .toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#0b2a3f;color:#d8f0ff;border:1px solid #1d4763;padding:10px 14px;border-radius:10px;display:none}
+
+/* OTROS list */
+.otros-list{margin-top:6px;display:flex;flex-direction:column;gap:6px}
+.adj-item{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border);background:#0a1324;border-radius:8px;padding:6px 8px}
+.adj-name{font-size:12px;color:#cdd9e5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%}
+.adj-actions .btn-mini{margin-left:6px}
 </style>
 </head>
 <body>
@@ -192,6 +194,7 @@ button:hover{background:#0c3055}
         </div>
       </div>
 
+      <!-- OTROS -->
       <div class="docbox" data-doctype="OTROS">
         <div class="dochead">
           <span class="docname">Otros (PDF/PNG/JPG)</span>
@@ -199,6 +202,7 @@ button:hover{background:#0c3055}
         </div>
         <input type="file" accept="application/pdf,image/*" multiple data-file="OTROS" />
         <div class="help" id="info_OTROS"></div>
+        <div id="otrosList" class="otros-list"></div>
       </div>
     </div>
 
@@ -319,10 +323,12 @@ function updateOtrosState(n, names){
 function clearForm(){
   currentId=null; $('#f_cntr').value=''; $('#f_cliente').value=''; $('#f_destino').value=''; $('#f_etd').value=''; $('#f_notas').value='';
   for(const k of SINGLE_DOCS) updateDocState(k,false,''); updateOtrosState(0,[]);
+  const list = document.getElementById('otrosList'); if(list) list.innerHTML='';
 }
 function loadIntoForm(rec){
   currentId=rec.id; $('#f_week').value=rec.week; $('#f_cntr').value=rec.cntr; $('#f_cliente').value=rec.cliente||''; $('#f_destino').value=rec.destino||''; $('#f_etd').value=rec.etd||''; $('#f_notas').value=rec.notas||'';
   inflateRecord(rec).then(r=>{ for(const k of SINGLE_DOCS) updateDocState(k,r.files[k],r.files[k]?'cargado':''); updateOtrosState(r.files.OTROS,[]); });
+  refreshOtrosList();
 }
 async function refreshList(){
   const list=$('#list'); list.innerHTML='';
@@ -372,7 +378,7 @@ $('#saveBtn').onclick = async ()=>{
     notas: $('#f_notas').value.trim(),
     ts: Date.now()
   };
-  await saveRecord(rec); currentId=rec.id; toast('Guardado ✔'); refreshList();
+  await saveRecord(rec); currentId=rec.id; toast('Guardado ✔'); refreshList(); refreshOtrosList();
 };
 
 $('#deleteBtn').onclick = async ()=>{
@@ -380,7 +386,7 @@ $('#deleteBtn').onclick = async ()=>{
   if(confirm('¿Eliminar este contenedor y sus archivos?')){ await deleteRecord(currentId); clearForm(); refreshList(); toast('Eliminado'); }
 };
 
-/* Subida de archivos con tope=1 (salvo OTROS) y confirmación de reemplazo */
+/* Subida de archivos con tope=1 (salvo OTROS) */
 Array.from(document.querySelectorAll('input[type=file][data-file]')).forEach(inp=>{
   inp.addEventListener('change', async (e)=>{
     const files=Array.from(e.target.files||[]); if(!files.length) return;
@@ -402,11 +408,11 @@ Array.from(document.querySelectorAll('input[type=file][data-file]')).forEach(inp
       updateDocState(kind,true,'cargado: '+f.name);
       toast(`${kind} actualizado`);
     }else{
-      // OTROS acepta múltiples
       const names=[];
       for(const f of files){ await saveFile(id,kind,f); names.push(f.name); }
       const otros=await getOtros(id);
       updateOtrosState(otros.length, otros.map(o=>o.name));
+      await refreshOtrosList();
       toast(`Adjuntos agregados (${names.length})`);
     }
     refreshList(); e.target.value='';
@@ -432,30 +438,76 @@ document.querySelectorAll('button[data-del]').forEach(btn=>{
   btn.addEventListener('click', ()=> deleteSingleFile(btn.getAttribute('data-del')));
 });
 
-/* Ver archivo (SINGLE_DOCS) – visor compatible con iPhone/Safari */
-async function viewSingleFile(kind){
-  if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
-  const f = await getFile(currentId, kind);
-  if(!f){ toast(`No hay archivo de ${kind}`); return; }
+/*************** OTROS: ver / eliminar por ítem ***************/
+async function getFileById(fileId){
+  if(useMemory) return memFiles.get(fileId) || null;
+  return await new Promise((res,rej)=>{
+    const r = tx('files').get(fileId);
+    r.onsuccess = ()=> res(r.result || null);
+    r.onerror   = ()=> rej(r.error);
+  });
+}
+async function deleteFileById(fileId){
+  if(useMemory){ memFiles.delete(fileId); return; }
+  await new Promise((res,rej)=>{
+    const r = tx('files','readwrite').delete(fileId);
+    r.onsuccess = res; r.onerror = ()=>rej(r.error);
+  });
+}
+async function refreshOtrosList(){
+  const list = document.getElementById('otrosList');
+  if(!list){ return; }
+  if(!currentId){ list.innerHTML = ''; updateOtrosState(0,[]); return; }
 
-  const name = (f.name || `${kind}`).toString();
-  const lowerName = name.toLowerCase();
-  const mime  = (f.type || 'application/octet-stream').toLowerCase();
+  const items = await getOtros(currentId);
+  updateOtrosState(items.length, items.map(o=>o.name));
 
-  const isPDF   = mime.includes('pdf') || lowerName.endsWith('.pdf');
-  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(lowerName);
-  const isText  = mime.startsWith('text/')  || /\.(csv|txt|log)$/i.test(lowerName);
+  if(items.length === 0){
+    list.innerHTML = '<div class="help">Sin adjuntos</div>';
+    return;
+  }
+  list.innerHTML = '';
+  items.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
 
-  // Safari: PDFs deben ser 'application/pdf' para no ver pantalla en blanco
-  const blob = new Blob([f.blob], { type: isPDF ? 'application/pdf' : (f.type || 'application/octet-stream') });
+  for(const it of items){
+    const row = document.createElement('div');
+    row.className = 'adj-item';
+    row.innerHTML = `
+      <span class="adj-name" title="${it.name}">${it.name}</span>
+      <div class="adj-actions">
+        <button class="btn-mini" data-view-otros="${it.fileId}">Ver</button>
+        <button class="btn-mini btn-danger" data-del-otros="${it.fileId}">Eliminar</button>
+      </div>`;
+    list.appendChild(row);
+  }
+
+  list.querySelectorAll('[data-view-otros]').forEach(btn=>{
+    btn.onclick = ()=> viewOtrosFile(btn.getAttribute('data-view-otros'));
+  });
+  list.querySelectorAll('[data-del-otros]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const fid = btn.getAttribute('data-del-otros');
+      if(confirm('¿Eliminar este adjunto?')){
+        await deleteFileById(fid);
+        refreshOtrosList();
+        toast('Adjunto eliminado');
+      }
+    };
+  });
+}
+
+/* Visores compatibles iPhone/Safari */
+function viewGenericBlob(name, type, arrayBuffer, kindLabel){
+  const lower = (name||'').toLowerCase();
+  const mime  = (type||'application/octet-stream').toLowerCase();
+  const isPDF   = mime.includes('pdf') || /\.pdf$/i.test(lower);
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(lower);
+  const blob = new Blob([arrayBuffer], { type: isPDF ? 'application/pdf' : (type||'application/octet-stream') });
   const url  = URL.createObjectURL(blob);
 
-  // Intentamos ventana nueva (gesto de usuario)
-  let win = null;
-  try { win = window.open('', '_blank'); } catch {}
-
+  let win = null; try { win = window.open('', '_blank'); } catch {}
   const viewerHTML = `<!doctype html><html><head><meta charset="utf-8">
-  <title>${kind} – ${name}</title>
+  <title>${kindLabel} – ${name}</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     html,body{height:100%;margin:0;background:#0b1220;color:#e5e7eb}
@@ -465,10 +517,8 @@ async function viewSingleFile(kind){
     iframe, img{display:block;width:100%;height:100%;border:0;background:#0b1220}
     a.dl{position:fixed;bottom:10px;left:10px;color:#bfeaff;text-decoration:none;font:13px system-ui}
   </style></head><body>
-    <div class="bar">${kind} · ${name}<span class="hint">Si no se ve, usa “Descargar”.</span></div>
-    <div class="wrap">
-      ${isImage ? '<img id="v" alt="vista">' : '<iframe id="v"></iframe>'}
-    </div>
+    <div class="bar">${kindLabel} · ${name}<span class="hint">Si no se ve, usa “Descargar”.</span></div>
+    <div class="wrap">${isImage ? '<img id="v" alt="vista">' : '<iframe id="v"></iframe>'}</div>
     <a class="dl" id="dl" download="${name}">Descargar</a>
   </body></html>`;
 
@@ -483,11 +533,20 @@ async function viewSingleFile(kind){
       const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=name; document.body.appendChild(a); a.click(); a.remove();
     }
   }else{
-    // Pop-up bloqueado: descarga directa
     const a=document.createElement('a'); a.href=url; a.target='_blank'; a.download=name; document.body.appendChild(a); a.click(); a.remove();
   }
-
   setTimeout(()=>URL.revokeObjectURL(url), 5*60*1000);
+}
+async function viewOtrosFile(fileId){
+  const f = await getFileById(fileId);
+  if(!f){ toast('Adjunto no encontrado'); return; }
+  viewGenericBlob(f.name, f.type, f.blob, 'OTROS');
+}
+async function viewSingleFile(kind){
+  if(!currentId){ toast('Primero abre/guarda un contenedor'); return; }
+  const f = await getFile(currentId, kind);
+  if(!f){ toast(`No hay archivo de ${kind}`); return; }
+  viewGenericBlob(f.name, f.type, f.blob, kind);
 }
 document.querySelectorAll('button[data-view]').forEach(btn=>{
   btn.addEventListener('click', ()=> viewSingleFile(btn.getAttribute('data-view')));
@@ -511,10 +570,15 @@ $('#importInput').onchange = async (e)=>{
       memRecords=new Map(data.records.map(r=>[r.id,r]));
       memFiles=new Map(data.files.map(f=>{ const ab=base64ToArrayBuffer(f.dataBase64); const k=f.fileId; return [k,{...f,blob:ab}]; }));
     }else{
-      for(const r of data.records){ await new Promise((res,rej)=>{ const req=tx('records','readwrite').put(r); req.onsuccess=res; req.onerror=()=>rej(r.error); }); }
-      for(const f of data.files){ const put={...f}; put.blob=base64ToArrayBuffer(f.dataBase64); delete put.dataBase64; await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); r.onsuccess=res; req.onerror=()=>rej(r.error); }); }
+      for(const r of data.records){
+        await new Promise((res,rej)=>{ const req=tx('records','readwrite').put(r); req.onsuccess=res; req.onerror=()=>rej(req.error); });
+      }
+      for(const f of data.files){
+        const put={...f}; put.blob=base64ToArrayBuffer(f.dataBase64); delete put.dataBase64;
+        await new Promise((res,rej)=>{ const req=tx('files','readwrite').put(put); req.onsuccess=res; req.onerror=()=>rej(req.error); });
+      }
     }
-    toast('Respaldo restaurado'); refreshList();
+    toast('Respaldo restaurado'); refreshList(); refreshOtrosList();
   }catch(err){ console.error(err); toast('Error al importar'); }
   e.target.value='';
 };
@@ -657,10 +721,10 @@ $('#shareBtn').onclick = async ()=>{
 };
 </script>
 
-<!-- Service Worker (sube versión para romper caché) -->
+<!-- Service Worker (sube versión para romper caché tras actualizar archivos) -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js?v=v16').catch(console.error);
+  navigator.serviceWorker.register('sw.js?v=v17').catch(console.error);
   navigator.serviceWorker.addEventListener('message', (e)=>{
     if(e.data && e.data.type==='SW_ACTIVATED'){
       const t=document.getElementById('toast'); if(t){ t.textContent='App actualizada. Recargando…'; t.style.display='block'; }
